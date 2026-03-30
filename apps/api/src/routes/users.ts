@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { eq, desc, count, and } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { users, resources } from "../db/schema.js";
+import type { ApiResponse } from "../types/shared.js";
 
 const userRoutes = new Hono();
 

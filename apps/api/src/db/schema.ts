@@ -20,7 +20,7 @@ export const resourceTypeEnum = pgEnum("resource_type", [
   "mcp",
 ]);
 
-export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
+export const userRoleEnum = pgEnum("user_role", ["user", "admin", "moderator"]);
 
 // ============================================================
 // Users
@@ -48,9 +48,9 @@ export const users = pgTable("users", {
 export const resources = pgTable("resources", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 200 }).notNull(),
-  description: text("description"),
+  description: text("description").notNull().default(""),
   type: resourceTypeEnum("type").notNull(),
-  content: jsonb("content"),
+  content: jsonb("content").notNull().default({}),
   authorId: uuid("author_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),

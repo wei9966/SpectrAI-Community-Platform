@@ -18,7 +18,7 @@ export function errorHandler(err: Error, c: Context) {
   if (err instanceof ZodError) {
     const messages = err.errors.map((e) => `${e.path.join(".")}: ${e.message}`);
     return c.json(
-      { success: false, error: "Validation failed", details: messages },
+      { success: false, error: `Validation failed: ${messages.join("; ")}` },
       400
     );
   }

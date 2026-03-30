@@ -8,6 +8,7 @@ import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
 import { getEnv } from "../config/env.js";
 import { authMiddleware, type JwtPayload } from "../middleware/auth.js";
+import type { ApiResponse } from "../types/shared.js";
 
 const authRoutes = new Hono();
 
