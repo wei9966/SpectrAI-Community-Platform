@@ -1,0 +1,75 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.docker
+
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+build
+.next
+out
+**/dist/**
+**/build/**
+
+# Development
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# Testing
+coverage
+.nyc_output
+vitest.config.ts
+jest.config.ts
+
+# Documentation
+docs
+*.md
+!package.json
+!tsconfig*.json
+
+# Scripts and tooling
+scripts
+*.test.ts
+*.spec.ts
+__tests__
+**/*.test.*
+**/*.spec.*
+
+# Editor
+*.iml
+*.ipr
+*.iws
+
+# Temporary files
+tmp
+temp
+.cache
