@@ -19,13 +19,62 @@ export interface ApiResponse<T = unknown> {
 export type ResourceType = "workflow" | "team" | "skill" | "mcp";
 export type UserRole = "user" | "admin" | "moderator";
 
+// ── Resource Content Types (must match shared package) ──────
+
+/** Base fields shared by all resource content types */
+export interface ResourceContentBase {
+  name: string;
+  description: string;
+  version: string;
+}
+
+export interface WorkflowStep {
+  id: string;
+  name: string;
+  type: string;
+  config: Record<string, unknown>;
+}
+
+export interface WorkflowContent extends ResourceContentBase {
+  steps: WorkflowStep[];
+}
+
+export interface TeamRole {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+}
+
+export interface TeamContent extends ResourceContentBase {
+  roles: TeamRole[];
+}
+
+export interface SkillContent extends ResourceContentBase {
+  command: string;
+  promptTemplate: string;
+  variables?: Record<string, string>;
+}
+
+export interface MCPContent extends ResourceContentBase {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+export type ResourceContent =
+  | WorkflowContent
+  | TeamContent
+  | SkillContent
+  | MCPContent;
+
 // ── Resource ────────────────────────────────────────────────
 export interface Resource {
   id: string;
   name: string;
   description: string;
   type: ResourceType;
-  content: unknown;
+  content: ResourceContent;
   authorId: string;
   downloads: number;
   likes: number;

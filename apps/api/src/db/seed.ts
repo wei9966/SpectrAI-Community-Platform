@@ -2,6 +2,12 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { hash } from "bcryptjs";
 import * as schema from "./schema.js";
+import type {
+  WorkflowContent,
+  TeamContent,
+  SkillContent,
+  MCPContent,
+} from "../types/shared.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -58,20 +64,30 @@ async function seed() {
           "Automated code review workflow using multiple AI agents. Includes linting, security scanning, and quality analysis steps.",
         type: "workflow" as const,
         content: {
+          name: "Code Review Workflow",
+          description: "Multi-step automated code review pipeline",
+          version: "1.2.0",
           steps: [
-            { name: "lint", agent: "linter", prompt: "Check code style" },
             {
-              name: "security",
-              agent: "security-scanner",
-              prompt: "Scan for vulnerabilities",
+              id: "step-lint",
+              name: "Lint Check",
+              type: "lint",
+              config: { agent: "linter", rules: "eslint-recommended" },
             },
             {
-              name: "review",
-              agent: "reviewer",
-              prompt: "Provide code review feedback",
+              id: "step-security",
+              name: "Security Scan",
+              type: "security",
+              config: { agent: "security-scanner", severity: "high" },
+            },
+            {
+              id: "step-review",
+              name: "AI Code Review",
+              type: "review",
+              config: { agent: "reviewer", depth: "thorough" },
             },
           ],
-        },
+        } satisfies WorkflowContent,
         authorId: alice.id,
         tags: ["code-review", "automation", "quality"],
         version: "1.2.0",
@@ -85,12 +101,30 @@ async function seed() {
           "Pre-configured multi-agent team for full-stack development. Includes frontend, backend, and DevOps agents.",
         type: "team" as const,
         content: {
-          agents: [
-            { role: "frontend", model: "claude-sonnet", skills: ["react", "css"] },
-            { role: "backend", model: "claude-opus", skills: ["node", "postgres"] },
-            { role: "devops", model: "claude-haiku", skills: ["docker", "ci-cd"] },
+          name: "Full-Stack Dev Team",
+          description: "Collaborative team for end-to-end web development",
+          version: "2.0.0",
+          roles: [
+            {
+              id: "role-frontend",
+              name: "Frontend Developer",
+              description: "Handles React UI, styling, and client-side logic",
+              permissions: ["read", "write", "review"],
+            },
+            {
+              id: "role-backend",
+              name: "Backend Developer",
+              description: "Handles Node.js API, database, and server logic",
+              permissions: ["read", "write", "deploy"],
+            },
+            {
+              id: "role-devops",
+              name: "DevOps Engineer",
+              description: "Handles CI/CD, Docker, and infrastructure",
+              permissions: ["read", "deploy", "configure"],
+            },
           ],
-        },
+        } satisfies TeamContent,
         authorId: alice.id,
         tags: ["team", "fullstack", "development"],
         version: "2.0.0",
@@ -104,11 +138,17 @@ async function seed() {
           "Skill template for safe database migration generation and execution with rollback support.",
         type: "skill" as const,
         content: {
-          trigger: "/migrate",
-          prompt:
-            "Generate a safe database migration based on the schema changes. Include rollback steps.",
-          tools: ["sql-executor", "schema-diff"],
-        },
+          name: "Database Migration Skill",
+          description: "Generate and execute safe database migrations with rollback",
+          version: "1.0.0",
+          command: "/migrate",
+          promptTemplate:
+            "Generate a safe database migration for {{database}} based on the schema changes. Include rollback steps. Target: {{target_version}}",
+          variables: {
+            database: "postgresql",
+            target_version: "latest",
+          },
+        } satisfies SkillContent,
         authorId: bob.id,
         tags: ["database", "migration", "postgres"],
         version: "1.0.0",
@@ -122,18 +162,13 @@ async function seed() {
           "MCP server for GitHub API integration. Supports issues, PRs, actions, and repository management.",
         type: "mcp" as const,
         content: {
-          server: {
-            command: "npx",
-            args: ["@spectrai/mcp-github"],
-            env: { GITHUB_TOKEN: "${GITHUB_TOKEN}" },
-          },
-          tools: [
-            "create_issue",
-            "list_prs",
-            "merge_pr",
-            "trigger_workflow",
-          ],
-        },
+          name: "GitHub Integration MCP",
+          description: "MCP server providing GitHub API tools for issues, PRs, actions, and repos",
+          version: "1.5.0",
+          command: "npx",
+          args: ["@spectrai/mcp-github"],
+          env: { GITHUB_TOKEN: "${GITHUB_TOKEN}" },
+        } satisfies MCPContent,
         authorId: bob.id,
         tags: ["github", "integration", "mcp"],
         version: "1.5.0",
@@ -147,12 +182,30 @@ async function seed() {
           "Multi-step research workflow: gather papers, summarize findings, generate reports with citations.",
         type: "workflow" as const,
         content: {
+          name: "AI Research Assistant",
+          description: "End-to-end research pipeline from search to report generation",
+          version: "1.0.0",
           steps: [
-            { name: "search", agent: "researcher", prompt: "Search for papers on the topic" },
-            { name: "summarize", agent: "summarizer", prompt: "Summarize key findings" },
-            { name: "report", agent: "writer", prompt: "Generate a formatted report" },
+            {
+              id: "step-search",
+              name: "Paper Search",
+              type: "search",
+              config: { agent: "researcher", sources: ["arxiv", "scholar"] },
+            },
+            {
+              id: "step-summarize",
+              name: "Findings Summary",
+              type: "summarize",
+              config: { agent: "summarizer", maxLength: 2000 },
+            },
+            {
+              id: "step-report",
+              name: "Report Generation",
+              type: "report",
+              config: { agent: "writer", format: "markdown", citations: true },
+            },
           ],
-        },
+        } satisfies WorkflowContent,
         authorId: charlie.id,
         tags: ["research", "academic", "automation"],
         version: "1.0.0",
