@@ -213,41 +213,157 @@ async function seed() {
         downloads: 45,
         likes: 12,
       },
+      {
+        name: "QA Review Team",
+        description:
+          "Quality assurance team with dedicated roles for testing, documentation, and release management.",
+        type: "team" as const,
+        content: {
+          name: "QA Review Team",
+          description: "Collaborative QA team for software release quality assurance",
+          version: "1.0.0",
+          roles: [
+            {
+              id: "role-tester",
+              name: "Test Engineer",
+              description: "Writes and runs unit, integration, and e2e tests",
+              permissions: ["read", "write", "test"],
+            },
+            {
+              id: "role-docs",
+              name: "Documentation Writer",
+              description: "Maintains API docs, changelogs, and user guides",
+              permissions: ["read", "write"],
+            },
+            {
+              id: "role-release",
+              name: "Release Manager",
+              description: "Coordinates version bumps, changelogs, and deployments",
+              permissions: ["read", "deploy", "configure"],
+            },
+          ],
+        } satisfies TeamContent,
+        authorId: charlie.id,
+        tags: ["team", "qa", "testing", "release"],
+        version: "1.0.0",
+        isPublished: true,
+        downloads: 38,
+        likes: 14,
+      },
+      {
+        name: "API Documentation Skill",
+        description:
+          "Automatically generate OpenAPI specs and markdown docs from source code annotations.",
+        type: "skill" as const,
+        content: {
+          name: "API Documentation Skill",
+          description: "Generate OpenAPI specs and markdown docs from code annotations",
+          version: "1.1.0",
+          command: "/gen-docs",
+          promptTemplate:
+            "Analyze the {{language}} source files and generate OpenAPI {{spec_version}} documentation. Output format: {{format}}",
+          variables: {
+            language: "typescript",
+            spec_version: "3.1",
+            format: "yaml",
+          },
+        } satisfies SkillContent,
+        authorId: alice.id,
+        tags: ["documentation", "openapi", "automation"],
+        version: "1.1.0",
+        isPublished: true,
+        downloads: 92,
+        likes: 27,
+      },
+      {
+        name: "Postgres Database MCP",
+        description:
+          "MCP server for direct PostgreSQL database operations. Supports queries, migrations, and schema inspection.",
+        type: "mcp" as const,
+        content: {
+          name: "Postgres Database MCP",
+          description: "MCP server providing PostgreSQL tools for queries, migrations, and schema inspection",
+          version: "1.0.0",
+          command: "npx",
+          args: ["@spectrai/mcp-postgres"],
+          env: { DATABASE_URL: "${DATABASE_URL}" },
+        } satisfies MCPContent,
+        authorId: charlie.id,
+        tags: ["postgres", "database", "mcp", "sql"],
+        version: "1.0.0",
+        isPublished: true,
+        downloads: 113,
+        likes: 33,
+      },
     ])
     .returning();
 
   console.log(`Created ${resourceData.length} resources`);
 
   // ── Create demo comments ───────────────────────────────
-  await db.insert(schema.resourceComments).values([
-    {
-      resourceId: resourceData[0].id,
-      userId: bob.id,
-      content: "This workflow saved me hours of manual code review! Highly recommended.",
-    },
-    {
-      resourceId: resourceData[0].id,
-      userId: charlie.id,
-      content: "Great workflow! Would love to see a step for performance analysis too.",
-    },
-    {
-      resourceId: resourceData[3].id,
-      userId: alice.id,
-      content: "Perfect MCP server for our CI/CD pipeline integration.",
-    },
-  ]);
+  // resourceData indices: 0=CodeReview, 1=FullStackTeam, 2=DBMigration,
+  // 3=GitHubMCP, 4=AIResearch, 5=QATeam, 6=APIDocs, 7=PostgresMCP
+  const comments = await db
+    .insert(schema.resourceComments)
+    .values([
+      {
+        resourceId: resourceData[0].id,
+        userId: bob.id,
+        content: "This workflow saved me hours of manual code review! Highly recommended.",
+      },
+      {
+        resourceId: resourceData[0].id,
+        userId: charlie.id,
+        content: "Great workflow! Would love to see a step for performance analysis too.",
+      },
+      {
+        resourceId: resourceData[3].id,
+        userId: alice.id,
+        content: "Perfect MCP server for our CI/CD pipeline integration.",
+      },
+      {
+        resourceId: resourceData[5].id,
+        userId: alice.id,
+        content: "We adopted this QA team setup and our release quality improved dramatically.",
+      },
+      {
+        resourceId: resourceData[6].id,
+        userId: bob.id,
+        content: "The OpenAPI output is clean and works great with Swagger UI.",
+      },
+      {
+        resourceId: resourceData[7].id,
+        userId: bob.id,
+        content: "Super useful for quick schema inspections without leaving the editor.",
+      },
+      {
+        resourceId: resourceData[4].id,
+        userId: alice.id,
+        content: "Used this for my literature review — the citation formatting is spot on.",
+      },
+    ])
+    .returning();
 
-  console.log("Created 3 comments");
+  console.log(`Created ${comments.length} comments`);
 
   // ── Create demo likes ──────────────────────────────────
-  await db.insert(schema.resourceLikes).values([
-    { resourceId: resourceData[0].id, userId: bob.id },
-    { resourceId: resourceData[0].id, userId: charlie.id },
-    { resourceId: resourceData[3].id, userId: alice.id },
-    { resourceId: resourceData[3].id, userId: charlie.id },
-  ]);
+  const likes = await db
+    .insert(schema.resourceLikes)
+    .values([
+      { resourceId: resourceData[0].id, userId: bob.id },
+      { resourceId: resourceData[0].id, userId: charlie.id },
+      { resourceId: resourceData[3].id, userId: alice.id },
+      { resourceId: resourceData[3].id, userId: charlie.id },
+      { resourceId: resourceData[5].id, userId: alice.id },
+      { resourceId: resourceData[5].id, userId: bob.id },
+      { resourceId: resourceData[6].id, userId: bob.id },
+      { resourceId: resourceData[6].id, userId: charlie.id },
+      { resourceId: resourceData[7].id, userId: alice.id },
+      { resourceId: resourceData[7].id, userId: bob.id },
+    ])
+    .returning();
 
-  console.log("Created 4 likes");
+  console.log(`Created ${likes.length} likes`);
 
   console.log("Seeding complete!");
   process.exit(0);
