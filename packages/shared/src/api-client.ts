@@ -1,7 +1,7 @@
 import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, AuthResponse, SearchParams, PaginationInfo } from './types/api';
 import type { Resource, PublicResource, CreateResourceInput, UpdateResourceInput, ResourceType } from './types/resource';
 import type { User, PublicUser, UpdateUserInput } from './types/user';
-import type { ForumPost, ForumPostDetail, ForumReplyFlat, CreatePostInput, CreateReplyInput } from './types/forum';
+import type { ForumPost, ForumPostDetail, ForumReplyFlat, CreatePostInput, CreateReplyInput, PostStatus, ReviewPostInput } from './types/forum';
 
 // API base URL - use environment variable or default to localhost
 // NEXT_PUBLIC_API_URL points to the API server root (e.g. http://host:3101),
@@ -489,14 +489,29 @@ export interface InstallManifest {
 }
 
 export const forumApi = {
-  async getPendingPosts(): Promise<ApiResponse<PendingPost[]>> {
-    return fetchApi<PendingPost[]>('/forum/posts/pending');
+  async listPosts(params?: { page?: number; limit?: number; sort?: string; status?: PostStatus }): Promise<PaginatedResponse<unknown>> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    return fetchApi(`/forum/posts?${searchParams}`) as Promise<PaginatedResponse<unknown>>;
   },
 
-  async reviewPost(id: string, action: 'approve' | 'reject', reason?: string): Promise<ApiResponse<{ id: string; status: string }>> {
+  async getPendingPosts(params?: { page?: number; limit?: number }): Promise<ApiResponse<PendingPost[]>> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    return fetchApi<PendingPost[]>(`/forum/posts/pending?${searchParams}`);
+  },
+
+  async reviewPost(id: string, input: ReviewPostInput): Promise<ApiResponse<{ id: string; status: string }>> {
     return fetchApi(`/forum/posts/${id}/review`, {
       method: 'PATCH',
-      body: JSON.stringify({ action, reason }),
+      body: JSON.stringify(input),
     });
   },
 
