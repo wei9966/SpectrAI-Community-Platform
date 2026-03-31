@@ -4,8 +4,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().default("redis://localhost:6379"),
   JWT_SECRET: z.string().min(1),
-  GITHUB_CLIENT_ID: z.string().min(1),
-  GITHUB_CLIENT_SECRET: z.string().min(1),
+  GITHUB_CLIENT_ID: z.string().default(""),
+  GITHUB_CLIENT_SECRET: z.string().default(""),
   GITHUB_CALLBACK_URL: z
     .string()
     .default("http://localhost:3000/api/auth/github/callback"),

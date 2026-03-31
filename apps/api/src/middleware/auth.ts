@@ -1,5 +1,6 @@
 import { Context, Next } from "hono";
-import { verify } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
+const { verify } = jwt;
 import { getEnv } from "../config/env.js";
 
 export interface JwtPayload {

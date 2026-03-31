@@ -1,6 +1,6 @@
-import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, AuthResponse, SearchParams, PaginationInfo } from '../types/api';
-import type { Resource, PublicResource, CreateResourceInput, UpdateResourceInput, ResourceType } from '../types/resource';
-import type { User, PublicUser, UpdateUserInput } from '../types/user';
+import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, AuthResponse, SearchParams, PaginationInfo } from './types/api';
+import type { Resource, PublicResource, CreateResourceInput, UpdateResourceInput, ResourceType } from './types/resource';
+import type { User, PublicUser, UpdateUserInput } from './types/user';
 
 // API base URL - use environment variable or default to localhost
 const API_BASE_URL = typeof process !== 'undefined'

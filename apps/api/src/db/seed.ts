@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { hash } from "bcryptjs";
+import bcrypt from "bcryptjs";
+const { hash } = bcrypt;
 import * as schema from "./schema.js";
 import type {
   WorkflowContent,

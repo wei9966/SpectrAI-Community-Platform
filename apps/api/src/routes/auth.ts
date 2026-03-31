@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { sign } from "jsonwebtoken";
-import { hash, compare } from "bcryptjs";
+import jwt from "jsonwebtoken";
+const { sign } = jwt;
+import bcrypt from "bcryptjs";
+const { hash, compare } = bcrypt;
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
