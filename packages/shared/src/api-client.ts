@@ -1,6 +1,7 @@
 import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, AuthResponse, SearchParams, PaginationInfo } from './types/api';
 import type { Resource, PublicResource, CreateResourceInput, UpdateResourceInput, ResourceType } from './types/resource';
 import type { User, PublicUser, UpdateUserInput } from './types/user';
+import type { PostStatus, ReviewPostInput } from './types/forum';
 
 // API base URL - use environment variable or default to localhost
 const API_BASE_URL = typeof process !== 'undefined'
@@ -448,6 +449,41 @@ export const notificationsApi = {
 
   async delete(id: string): Promise<ApiResponse<{ message: string }>> {
     return fetchApi(`/notifications/${id}`, { method: 'DELETE' });
+  },
+};
+
+/**
+ * Forum API client
+ */
+export const forumApi = {
+  async listPosts(params?: { page?: number; limit?: number; sort?: string; status?: PostStatus }): Promise<PaginatedResponse<unknown>> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+    return fetchApi(`/forum/posts?${searchParams}`) as Promise<PaginatedResponse<unknown>>;
+  },
+
+  async getPendingPosts(params?: { page?: number; limit?: number }): Promise<PaginatedResponse<unknown>> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    return fetchApi(`/forum/posts/pending?${searchParams}`) as Promise<PaginatedResponse<unknown>>;
+  },
+
+  async getPost(id: string): Promise<ApiResponse<unknown>> {
+    return fetchApi(`/forum/posts/${id}`);
+  },
+
+  async reviewPost(id: string, input: ReviewPostInput): Promise<ApiResponse<unknown>> {
+    return fetchApi(`/forum/posts/${id}/review`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    });
   },
 };
 
