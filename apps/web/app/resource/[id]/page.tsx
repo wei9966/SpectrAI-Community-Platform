@@ -3,11 +3,13 @@
 import * as React from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Download, Heart, Calendar, Tag, User, Code, CheckCircle2 } from "lucide-react";
+import { Download, Heart, Calendar, Tag, User, Code, CheckCircle2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CommentSection } from "@/components/CommentSection";
+import { StarRating } from "@/components/star-rating";
+import { FavoriteButton } from "@/components/favorite-button";
 import { mockResources, mockComments, getResourceTypeLabel, getResourceTypeVariant } from "@/lib/mock-data";
 import { api } from "@/lib/api";
 
@@ -19,6 +21,26 @@ export default function ResourceDetailPage() {
   const [isLiked, setIsLiked] = React.useState(false);
   const [isInstalling, setIsInstalling] = React.useState(false);
   const [showJsonPreview, setShowJsonPreview] = React.useState(false);
+
+  // 评分相关状态（后续 API 对接后从 props 传入）
+  const [userRating, setUserRating] = React.useState(0); // 当前用户评分
+  const [isFavorited, setIsFavorited] = React.useState(false);
+  // 模拟评分数据
+  const averageRating = (resource as any).averageRating ?? 4.2;
+  const ratingCount = (resource as any).ratingCount ?? 128;
+
+  const handleRatingChange = async (rating: number) => {
+    // TODO: API 对接后调用 POST /api/resources/:id/rate
+    console.log("Rating submitted:", rating);
+    setUserRating(rating);
+  };
+
+  const handleFavoriteToggle = async () => {
+    // TODO: API 对接后调用 POST /api/resources/:id/favorite
+    console.log("Favorite toggled");
+    setIsFavorited(!isFavorited);
+    return true;
+  };
 
   const handleLike = async () => {
     try {
@@ -186,6 +208,13 @@ export default function ResourceDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">平均评分</span>
+                <span className="font-medium flex items-center gap-2">
+                  <Star className="w-4 h-4 text-yellow-400" />
+                  {averageRating.toFixed(1)} ({ratingCount})
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">下载数</span>
                 <span className="font-medium flex items-center gap-2">
                   <Download className="w-4 h-4" />
@@ -205,6 +234,35 @@ export default function ResourceDetailPage() {
                   <Calendar className="w-4 h-4" />
                   {timeAgo(resource.updatedAt)}
                 </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 评分区域 */}
+          <Card>
+            <CardHeader>
+              <h3 className="font-semibold">我的评分</h3>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-col items-center gap-2">
+                <StarRating
+                  value={userRating || averageRating}
+                  size="lg"
+                  onChange={handleRatingChange}
+                />
+                <p className="text-sm text-muted-foreground">
+                  {userRating > 0 ? `您评分：${userRating} 星` : '点击星星评分'}
+                </p>
+              </div>
+              <div className="pt-4 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">收藏资源</span>
+                  <FavoriteButton
+                    isFavorited={isFavorited}
+                    onToggle={handleFavoriteToggle}
+                    size="md"
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

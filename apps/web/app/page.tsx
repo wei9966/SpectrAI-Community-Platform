@@ -1,11 +1,18 @@
 import Link from "next/link";
-import { ArrowRight, Zap, Users, Wrench, Plug } from "lucide-react";
+import { ArrowRight, Zap, Users, Wrench, Plug, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResourceCard } from "@/components/ResourceCard";
 import { mockResources } from "@/lib/mock-data";
 
 export default function HomePage() {
-  const featuredResources = mockResources.slice(0, 4);
+  // 热门资源：按评分和下载综合排序（mock 数据，待 API 对接后从排行榜 API 获取）
+  const featuredResources = [...mockResources]
+    .map(r => ({
+      ...r,
+      score: r.downloads * 0.1 + r.likes * 0.5 + 4.0 * 100,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
 
   const categories = [
     {
@@ -112,9 +119,17 @@ export default function HomePage() {
       <section className="py-16 border-t border-border/40">
         <div className="container">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold">
-              热门资源
-            </h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl md:text-3xl font-bold">
+                热门资源
+              </h2>
+              <Link href="/rankings">
+                <Button variant="outline" size="sm" className="gap-1">
+                  <Trophy className="w-4 h-4" />
+                  排行榜
+                </Button>
+              </Link>
+            </div>
             <Link href="/marketplace">
               <Button variant="ghost" className="gap-2">
                 查看更多

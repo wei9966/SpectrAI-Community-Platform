@@ -7,6 +7,13 @@ import { errorHandler } from "./middleware/error-handler.js";
 import authRoutes from "./routes/auth.js";
 import resourceRoutes from "./routes/resources.js";
 import userRoutes from "./routes/users.js";
+import ratingRoutes from "./routes/ratings.js";
+import favoriteRoutes, { userFavoriteRoutes } from "./routes/favorites.js";
+import projectRoutes from "./routes/projects.js";
+import uploadRoutes from "./routes/uploads.js";
+import rankingRoutes from "./routes/rankings.js";
+import forumRoutes from "./routes/forum.js";
+import notificationRoutes from "./routes/notifications.js";
 
 const app = new Hono();
 
@@ -25,7 +32,15 @@ app.get("/api/health", (c) => {
 // ── Routes ───────────────────────────────────────────────────
 app.route("/api/auth", authRoutes);
 app.route("/api/resources", resourceRoutes);
+app.route("/api/resources", ratingRoutes);
+app.route("/api/resources", favoriteRoutes);
 app.route("/api/users", userRoutes);
+app.route("/api/users", userFavoriteRoutes);
+app.route("/api/projects", projectRoutes);
+app.route("/api/uploads", uploadRoutes);
+app.route("/api/rankings", rankingRoutes);
+app.route("/api/forum", forumRoutes);
+app.route("/api/notifications", notificationRoutes);
 
 // ── 404 fallback ─────────────────────────────────────────────
 app.notFound((c) => {

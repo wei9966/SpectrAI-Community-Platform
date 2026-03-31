@@ -14,12 +14,15 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
-    "@spectrai-community/shared": "workspace:*",
+    "@aws-sdk/client-s3": "^3.1020.0",
+    "@aws-sdk/s3-request-presigner": "^3.1020.0",
     "@hono/node-server": "^1.13.7",
     "@hono/zod-validator": "^0.4.2",
+    "@spectrai-community/shared": "workspace:*",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.36.4",
     "hono": "^4.6.16",
+    "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.2",
     "postgres": "^3.4.5",
     "redis": "^4.7.0",

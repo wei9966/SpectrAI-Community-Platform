@@ -1,16 +1,41 @@
+import * as React from "react";
 import Link from "next/link";
-import { Download, Heart, Star } from "lucide-react";
+import { Download, Heart } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { StarRating } from "@/components/star-rating";
+import { FavoriteButton } from "@/components/favorite-button";
 import { getResourceTypeLabel, getResourceTypeVariant } from "@/lib/mock-data";
 import type { PublicResource } from "@spectrai-community/shared";
 
 interface ResourceCardProps {
   resource: PublicResource;
+  /** 是否显示评分（默认显示） */
+  showRating?: boolean;
+  /** 是否显示收藏按钮（默认显示） */
+  showFavorite?: boolean;
+  /** 收藏状态 */
+  isFavorited?: boolean;
+  /** 评分变化回调 */
+  onFavoriteToggle?: () => Promise<boolean>;
+  /** 当前用户 ID（用于判断是否登录） */
+  currentUserId?: string | null;
 }
 
-export function ResourceCard({ resource }: ResourceCardProps) {
+export function ResourceCard({
+  resource,
+  showRating = true,
+  showFavorite = true,
+  isFavorited = false,
+  onFavoriteToggle,
+  currentUserId,
+}: ResourceCardProps) {
   const variant = getResourceTypeVariant(resource.type);
+
+  // 模拟评分数据（后续 API 对接后从 props 传入）
+  const averageRating = (resource as any).averageRating ?? 0;
+  const ratingCount = (resource as any).ratingCount ?? 0;
+
   const timeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
     const intervals: Record<string, number> = {
@@ -88,18 +113,28 @@ export function ResourceCard({ resource }: ResourceCardProps) {
 
           {/* 统计数据 */}
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            {showRating && averageRating > 0 && (
+              <StarRating
+                value={averageRating}
+                count={ratingCount}
+                size="sm"
+                readOnly
+                showCount={false}
+              />
+            )}
             <span className="flex items-center gap-1">
               <Download className="w-3.5 h-3.5" />
               {resource.downloads >= 1000
                 ? `${(resource.downloads / 1000).toFixed(1)}k`
                 : resource.downloads}
             </span>
-            <span className="flex items-center gap-1">
-              <Heart className="w-3.5 h-3.5" />
-              {resource.likes >= 1000
-                ? `${(resource.likes / 1000).toFixed(1)}k`
-                : resource.likes}
-            </span>
+            {showFavorite && onFavoriteToggle && currentUserId && (
+              <FavoriteButton
+                isFavorited={isFavorited}
+                onToggle={onFavoriteToggle}
+                size="sm"
+              />
+            )}
           </div>
         </div>
       </CardFooter>

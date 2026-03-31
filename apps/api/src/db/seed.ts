@@ -145,10 +145,10 @@ async function seed() {
           command: "/migrate",
           promptTemplate:
             "Generate a safe database migration for {{database}} based on the schema changes. Include rollback steps. Target: {{target_version}}",
-          variables: {
-            database: "postgresql",
-            target_version: "latest",
-          },
+          variables: [
+            { name: "database", type: "string", defaultValue: "postgresql" },
+            { name: "target_version", type: "string", defaultValue: "latest" },
+          ],
         } satisfies SkillContent,
         authorId: bob.id,
         tags: ["database", "migration", "postgres"],
@@ -263,11 +263,11 @@ async function seed() {
           command: "/gen-docs",
           promptTemplate:
             "Analyze the {{language}} source files and generate OpenAPI {{spec_version}} documentation. Output format: {{format}}",
-          variables: {
-            language: "typescript",
-            spec_version: "3.1",
-            format: "yaml",
-          },
+          variables: [
+            { name: "language", type: "string", defaultValue: "typescript" },
+            { name: "spec_version", type: "string", defaultValue: "3.1" },
+            { name: "format", type: "string", defaultValue: "yaml" },
+          ],
         } satisfies SkillContent,
         authorId: alice.id,
         tags: ["documentation", "openapi", "automation"],
@@ -365,6 +365,107 @@ async function seed() {
     .returning();
 
   console.log(`Created ${likes.length} likes`);
+
+  // ── Create demo ratings ──────────────────────────────────
+  const ratings = await db
+    .insert(schema.resourceRatings)
+    .values([
+      { resourceId: resourceData[0].id, userId: bob.id, rating: 5 },
+      { resourceId: resourceData[0].id, userId: charlie.id, rating: 4 },
+      { resourceId: resourceData[3].id, userId: alice.id, rating: 5 },
+      { resourceId: resourceData[3].id, userId: charlie.id, rating: 4 },
+      { resourceId: resourceData[5].id, userId: alice.id, rating: 5 },
+      { resourceId: resourceData[7].id, userId: alice.id, rating: 4 },
+      { resourceId: resourceData[7].id, userId: bob.id, rating: 5 },
+    ])
+    .returning();
+
+  console.log(`Created ${ratings.length} ratings`);
+
+  // ── Create demo favorites ────────────────────────────────
+  const favorites = await db
+    .insert(schema.resourceFavorites)
+    .values([
+      { resourceId: resourceData[0].id, userId: bob.id },
+      { resourceId: resourceData[0].id, userId: charlie.id },
+      { resourceId: resourceData[3].id, userId: alice.id },
+      { resourceId: resourceData[4].id, userId: bob.id },
+      { resourceId: resourceData[7].id, userId: alice.id },
+    ])
+    .returning();
+
+  console.log(`Created ${favorites.length} favorites`);
+
+  // ── Create demo projects ─────────────────────────────────
+  const projects = await db
+    .insert(schema.projects)
+    .values([
+      {
+        title: "智能代码审查平台",
+        description: "基于 AI Agent 的自动化代码审查与质量保障平台",
+        userId: alice.id,
+        coverImage: "https://api.dicebear.com/7.x/shapes/svg?seed=project1",
+        demoUrl: "https://demo.spectrai.dev/code-review",
+        tags: ["code-review", "ai", "automation"],
+        status: "published",
+      },
+      {
+        title: "多 Agent 研究助手",
+        description: "利用多个 AI Agent 协作完成学术研究的端到端流程",
+        userId: charlie.id,
+        tags: ["research", "multi-agent"],
+        status: "published",
+      },
+    ])
+    .returning();
+
+  console.log(`Created ${projects.length} projects`);
+
+  // ── Link resources to projects ───────────────────────────
+  const projectLinks = await db
+    .insert(schema.projectResources)
+    .values([
+      { projectId: projects[0].id, resourceId: resourceData[0].id },
+      { projectId: projects[0].id, resourceId: resourceData[5].id },
+      { projectId: projects[1].id, resourceId: resourceData[4].id },
+    ])
+    .returning();
+
+  console.log(`Created ${projectLinks.length} project-resource links`);
+
+  // ── Create demo notifications ────────────────────────────
+  const notifs = await db
+    .insert(schema.notifications)
+    .values([
+      {
+        userId: alice.id,
+        fromUserId: bob.id,
+        type: "rating",
+        title: "你的资源「Code Review Workflow」收到了 5 星评分",
+        relatedId: resourceData[0].id,
+        relatedType: "resource",
+      },
+      {
+        userId: alice.id,
+        fromUserId: charlie.id,
+        type: "favorite",
+        title: "有人收藏了你的资源「Code Review Workflow」",
+        relatedId: resourceData[0].id,
+        relatedType: "resource",
+      },
+      {
+        userId: bob.id,
+        fromUserId: alice.id,
+        type: "rating",
+        title: "你的资源「GitHub Integration MCP」收到了 5 星评分",
+        relatedId: resourceData[3].id,
+        relatedType: "resource",
+        isRead: true,
+      },
+    ])
+    .returning();
+
+  console.log(`Created ${notifs.length} notifications`);
 
   console.log("Seeding complete!");
   process.exit(0);

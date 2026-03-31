@@ -18,7 +18,7 @@ import {
   resourceLikes,
   resourceComments,
 } from "../db/schema.js";
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 
 const resourceRoutes = new Hono();
 
@@ -46,15 +46,16 @@ const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   type: z.enum(["workflow", "team", "skill", "mcp"]).optional(),
-  sort: z.enum(["latest", "popular", "downloads"]).default("latest"),
+  sort: z.enum(["latest", "popular", "downloads", "rating"]).default("latest"),
   q: z.string().optional(),
 });
 
 // ── GET /api/resources ──────────────────────────────────────
-resourceRoutes.get("/", async (c) => {
+resourceRoutes.get("/", optionalAuthMiddleware, async (c) => {
   const query = listQuerySchema.parse(c.req.query());
   const { page, limit, type, sort, q } = query;
   const offset = (page - 1) * limit;
+  const currentUserId: string | undefined = c.get("user")?.userId;
 
   const conditions = [eq(resources.isPublished, true)];
   if (type) {
@@ -70,12 +71,20 @@ resourceRoutes.get("/", async (c) => {
   }
   const where = and(...conditions);
 
+  const avgRatingSql = sql<number>`COALESCE((SELECT AVG(rating)::numeric(3,2) FROM resource_ratings WHERE resource_id = ${resources.id}), 0)`;
+
   const orderBy =
     sort === "popular"
       ? desc(resources.likes)
       : sort === "downloads"
         ? desc(resources.downloads)
-        : desc(resources.createdAt);
+        : sort === "rating"
+          ? desc(avgRatingSql)
+          : desc(resources.createdAt);
+
+  const isFavoritedSql = currentUserId
+    ? sql<boolean>`EXISTS(SELECT 1 FROM resource_favorites WHERE resource_id = ${resources.id} AND user_id = ${currentUserId})`
+    : sql<boolean>`false`;
 
   const [items, [{ total }]] = await Promise.all([
     db
@@ -95,6 +104,9 @@ resourceRoutes.get("/", async (c) => {
           username: users.username,
           avatarUrl: users.avatarUrl,
         },
+        averageRating: avgRatingSql,
+        ratingCount: sql<number>`(SELECT COUNT(*)::int FROM resource_ratings WHERE resource_id = ${resources.id})`,
+        isFavorited: isFavoritedSql,
       })
       .from(resources)
       .leftJoin(users, eq(resources.authorId, users.id))
@@ -167,8 +179,17 @@ resourceRoutes.get("/search", async (c) => {
 });
 
 // ── GET /api/resources/:id ──────────────────────────────────
-resourceRoutes.get("/:id", async (c) => {
-  const id = c.req.param("id");
+resourceRoutes.get("/:id", optionalAuthMiddleware, async (c) => {
+  const id = c.req.param("id")!;
+  const currentUserId: string | undefined = c.get("user")?.userId;
+
+  const isFavoritedSql = currentUserId
+    ? sql<boolean>`EXISTS(SELECT 1 FROM resource_favorites WHERE resource_id = ${resources.id} AND user_id = ${currentUserId})`
+    : sql<boolean>`false`;
+
+  const userRatingSql = currentUserId
+    ? sql<number | null>`(SELECT rating FROM resource_ratings WHERE resource_id = ${resources.id} AND user_id = ${currentUserId} LIMIT 1)`
+    : sql<number | null>`NULL`;
 
   const [resource] = await db
     .select({
@@ -190,6 +211,10 @@ resourceRoutes.get("/:id", async (c) => {
         avatarUrl: users.avatarUrl,
         bio: users.bio,
       },
+      averageRating: sql<number>`COALESCE((SELECT AVG(rating)::numeric(3,2) FROM resource_ratings WHERE resource_id = ${resources.id}), 0)`,
+      ratingCount: sql<number>`(SELECT COUNT(*)::int FROM resource_ratings WHERE resource_id = ${resources.id})`,
+      isFavorited: isFavoritedSql,
+      userRating: userRatingSql,
     })
     .from(resources)
     .leftJoin(users, eq(resources.authorId, users.id))
@@ -236,7 +261,7 @@ resourceRoutes.put(
   authMiddleware,
   zValidator("json", updateResourceSchema),
   async (c) => {
-    const id = c.req.param("id");
+    const id = c.req.param("id")!;
     const { userId } = c.get("user");
     const body = c.req.valid("json");
 
@@ -269,7 +294,7 @@ resourceRoutes.put(
 
 // ── DELETE /api/resources/:id ───────────────────────────────
 resourceRoutes.delete("/:id", authMiddleware, async (c) => {
-  const id = c.req.param("id");
+  const id = c.req.param("id")!;
   const { userId, role } = c.get("user");
 
   const [existing] = await db
@@ -294,7 +319,7 @@ resourceRoutes.delete("/:id", authMiddleware, async (c) => {
 
 // ── POST /api/resources/:id/like ────────────────────────────
 resourceRoutes.post("/:id/like", authMiddleware, async (c) => {
-  const resourceId = c.req.param("id");
+  const resourceId = c.req.param("id")!;
   const { userId } = c.get("user");
 
   // Check resource exists
@@ -345,7 +370,7 @@ resourceRoutes.post("/:id/like", authMiddleware, async (c) => {
 
 // ── GET /api/resources/:id/comments ─────────────────────────
 resourceRoutes.get("/:id/comments", async (c) => {
-  const resourceId = c.req.param("id");
+  const resourceId = c.req.param("id")!;
   const page = Number(c.req.query("page") || 1);
   const limit = Math.min(Number(c.req.query("limit") || 20), 100);
   const offset = (page - 1) * limit;
@@ -389,7 +414,7 @@ resourceRoutes.post(
   authMiddleware,
   zValidator("json", z.object({ content: z.string().min(1).max(2000) })),
   async (c) => {
-    const resourceId = c.req.param("id");
+    const resourceId = c.req.param("id")!;
     const { userId } = c.get("user");
     const { content } = c.req.valid("json");
 

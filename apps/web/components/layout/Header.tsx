@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Menu, X, User, LogOut, PlusCircle, LayoutGrid } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 
 export function Header() {
   const pathname = usePathname();
@@ -70,35 +71,39 @@ export function Header() {
           </Link>
 
           {isLoggedIn ? (
-            <div className="relative">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-              >
-                <User className="h-5 w-5" />
-              </Button>
+            <>
+              <NotificationBell />
 
-              {userMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-48 rounded-md border bg-popover p-1 shadow-lg">
-                  <Link
-                    href="/user/me"
-                    className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-                    onClick={() => setUserMenuOpen(false)}
-                  >
-                    <User className="h-4 w-4" />
-                    个人主页
-                  </Link>
-                  <button
-                    className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent text-destructive"
-                    onClick={handleLogout}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    退出登录
-                  </button>
-                </div>
-              )}
-            </div>
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                >
+                  <User className="h-5 w-5" />
+                </Button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded-md border bg-popover p-1 shadow-lg">
+                    <Link
+                      href="/user/me"
+                      className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+                      onClick={() => setUserMenuOpen(false)}
+                    >
+                      <User className="h-4 w-4" />
+                      个人主页
+                    </Link>
+                    <button
+                      className="flex w-full items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent text-destructive"
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      退出登录
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
           ) : (
             <Link href="/login">
               <Button variant="outline" size="sm">
@@ -151,6 +156,7 @@ export function Header() {
           <div className="flex flex-col space-y-2 pt-4 border-t border-border">
             {isLoggedIn ? (
               <>
+                <NotificationBell />
                 <Link
                   href="/user/me"
                   className="flex items-center gap-2 text-sm font-medium"
@@ -158,6 +164,13 @@ export function Header() {
                 >
                   <User className="h-4 w-4" />
                   个人主页
+                </Link>
+                <Link
+                  href="/notifications"
+                  className="flex items-center gap-2 text-sm font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  通知中心
                 </Link>
                 <button
                   className="flex items-center gap-2 text-sm font-medium text-destructive"
