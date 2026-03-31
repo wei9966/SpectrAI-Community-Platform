@@ -30,6 +30,8 @@ export function Header() {
   const navItems = [
     { href: '/', label: '首页' },
     { href: '/marketplace', label: '市场' },
+    { href: '/forum', label: '论坛' },
+    { href: '/showcase', label: '展示' },
   ];
 
   return (

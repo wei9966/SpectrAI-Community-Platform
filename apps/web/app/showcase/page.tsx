@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { PublicUser } from '@spectrai-community/shared';
 
-// 项目类型（基于 project schema）
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+
 interface ShowcaseProject {
   id: string;
   title: string;
@@ -25,147 +25,44 @@ interface ShowcaseProject {
   tags: string[];
   likes: number;
   views: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
-
-// Mock 数据
-const mockProjects: ShowcaseProject[] = [
-  {
-    id: 'p1',
-    title: 'AI 代码审查助手',
-    description: '基于 GPT-4 的自动化代码审查工具，支持检测安全漏洞、性能问题和代码规范违规。可集成到 GitHub Actions 中自动运行。',
-    coverImageUrl: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&h=400&fit=crop',
-    demoUrl: 'https://demo.example.com/code-review',
-    sourceUrl: 'https://github.com/example/code-review',
-    author: {
-      id: 'u1',
-      username: 'DevMaster',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DevMaster',
-    },
-    tags: ['GPT-4', '代码审查', 'GitHub Actions'],
-    likes: 328,
-    views: 4521,
-    createdAt: new Date('2025-03-20T10:00:00Z'),
-    updatedAt: new Date('2025-03-28T15:30:00Z'),
-  },
-  {
-    id: 'p2',
-    title: '智能数据分析平台',
-    description: '拖拽式的可视化数据分析平台，支持连接多种数据源，自动生成分析报告和预测模型。',
-    coverImageUrl: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&h=400&fit=crop',
-    demoUrl: 'https://demo.example.com/data-platform',
-    sourceUrl: 'https://github.com/example/data-platform',
-    author: {
-      id: 'u2',
-      username: 'DataWizard',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DataWizard',
-    },
-    tags: ['数据分析', '可视化', 'ML'],
-    likes: 256,
-    views: 3210,
-    createdAt: new Date('2025-03-15T08:00:00Z'),
-    updatedAt: new Date('2025-03-25T12:00:00Z'),
-  },
-  {
-    id: 'p3',
-    title: '自动化测试生成器',
-    description: '利用 AI 自动生成单元测试和集成测试，提升测试覆盖率。',
-    coverImageUrl: 'https://images.unsplash.com/photo-1516116216624-53e697fedbea?w=800&h=400&fit=crop',
-    demoUrl: null,
-    sourceUrl: 'https://github.com/example/test-generator',
-    author: {
-      id: 'u3',
-      username: 'QAExpert',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=QAExpert',
-    },
-    tags: ['测试', '自动化', 'AI'],
-    likes: 189,
-    views: 2156,
-    createdAt: new Date('2025-03-10T14:00:00Z'),
-    updatedAt: new Date('2025-03-22T09:00:00Z'),
-  },
-  {
-    id: 'p4',
-    title: '实时协作白板',
-    description: '多人实时协作的在线白板工具，支持绘图、便签、流程图等多种元素。',
-    coverImageUrl: 'https://images.unsplash.com/photo-156ActionEditor5-141a5a9f9f09?w=800&h=400&fit=crop',
-    demoUrl: 'https://demo.example.com/whiteboard',
-    sourceUrl: null,
-    author: {
-      id: 'u4',
-      username: 'CollabTools',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=CollabTools',
-    },
-    tags: ['协作', '白板', '实时'],
-    likes: 412,
-    views: 5678,
-    createdAt: new Date('2025-03-05T11:00:00Z'),
-    updatedAt: new Date('2025-03-29T16:00:00Z'),
-  },
-  {
-    id: 'p5',
-    title: 'Prompt 管理工作流',
-    description: '管理和优化 AI 提示词的工作流工具，支持版本控制和团队协作。',
-    coverImageUrl: 'https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=800&h=400&fit=crop',
-    demoUrl: 'https://demo.example.com/prompt-workflow',
-    sourceUrl: 'https://github.com/example/prompt-workflow',
-    author: {
-      id: 'u5',
-      username: 'PromptPro',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=PromptPro',
-    },
-    tags: ['Prompt', '工作流', '团队协作'],
-    likes: 567,
-    views: 7890,
-    createdAt: new Date('2025-03-01T09:00:00Z'),
-    updatedAt: new Date('2025-03-30T10:00:00Z'),
-  },
-  {
-    id: 'p6',
-    title: 'API 文档自动生成器',
-    description: '从代码注释自动生成 API 文档，支持 Swagger UI 集成。',
-    coverImageUrl: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=800&h=400&fit=crop',
-    demoUrl: 'https://demo.example.com/api-docs',
-    sourceUrl: 'https://github.com/example/api-docs-gen',
-    author: {
-      id: 'u6',
-      username: 'DocuMaster',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DocuMaster',
-    },
-    tags: ['文档', 'API', '自动化'],
-    likes: 234,
-    views: 3456,
-    createdAt: new Date('2025-02-28T13:00:00Z'),
-    updatedAt: new Date('2025-03-20T11:00:00Z'),
-  },
-];
 
 type SortOption = 'latest' | 'popular';
 
 export default function ShowcasePage() {
-  const [projects, setProjects] = React.useState(mockProjects);
+  const [projects, setProjects] = React.useState<ShowcaseProject[]>([]);
   const [sortBy, setSortBy] = React.useState<SortOption>('latest');
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(false);
 
-  // 检查认证状态
   React.useEffect(() => {
     const token = localStorage.getItem('auth_token');
     setIsAuthenticated(!!token);
   }, []);
 
-  // 排序
-  const sortedProjects = React.useMemo(() => {
-    const sorted = [...projects];
-    if (sortBy === 'popular') {
-      sorted.sort((a, b) => b.likes - a.likes);
-    } else {
-      sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }
-    return sorted;
-  }, [projects, sortBy]);
+  React.useEffect(() => {
+    setLoading(true);
+    setError(false);
 
-  const timeAgo = (date: Date) => {
+    const token = localStorage.getItem('auth_token');
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch(`${API_BASE}/api/projects?sort=${sortBy}`, { headers })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setProjects(data.data?.items || (Array.isArray(data.data) ? data.data : []));
+        }
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [sortBy]);
+
+  const timeAgo = (date: string | Date) => {
     const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
     const intervals: Record<string, number> = {
       year: 31536000,
@@ -227,14 +124,43 @@ export default function ShowcasePage() {
           </Button>
         </div>
         <span className="text-sm text-muted-foreground ml-auto">
-          共 {sortedProjects.length} 个项目
+          共 {projects.length} 个项目
         </span>
       </div>
 
       {/* 项目网格 */}
-      {sortedProjects.length > 0 ? (
+      {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {sortedProjects.map((project) => (
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="overflow-hidden animate-pulse">
+              <div className="aspect-video bg-muted" />
+              <CardHeader className="pb-2">
+                <div className="h-5 bg-muted rounded w-2/3 mb-2" />
+                <div className="flex gap-1.5">
+                  <div className="h-5 bg-muted rounded w-14" />
+                  <div className="h-5 bg-muted rounded w-14" />
+                </div>
+              </CardHeader>
+              <CardContent className="pb-2">
+                <div className="h-4 bg-muted rounded w-full mb-1" />
+                <div className="h-4 bg-muted rounded w-3/4" />
+              </CardContent>
+              <CardFooter className="pt-2 border-t border-border/40">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 bg-muted rounded-full" />
+                  <div className="h-3 bg-muted rounded w-16" />
+                </div>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="text-center py-16 text-muted-foreground">
+          数据加载失败，请刷新页面重试
+        </div>
+      ) : projects.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {projects.map((project) => (
             <ProjectCard key={project.id} project={project} timeAgo={timeAgo} />
           ))}
         </div>
@@ -256,7 +182,7 @@ export default function ShowcasePage() {
 
 interface ProjectCardProps {
   project: ShowcaseProject;
-  timeAgo: (date: Date) => string;
+  timeAgo: (date: string | Date) => string;
 }
 
 function ProjectCard({ project, timeAgo }: ProjectCardProps) {
@@ -291,7 +217,7 @@ function ProjectCard({ project, timeAgo }: ProjectCardProps) {
         </div>
         {/* 标签 */}
         <div className="flex flex-wrap gap-1.5">
-          {project.tags.slice(0, 3).map((tag) => (
+          {(project.tags || []).slice(0, 3).map((tag) => (
             <Badge key={tag} variant="secondary" className="text-xs">
               {tag}
             </Badge>
