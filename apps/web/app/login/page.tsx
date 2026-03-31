@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Github } from "lucide-react";
+import { Github, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,7 @@ export default function LoginPage() {
   });
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -73,6 +74,12 @@ export default function LoginPage() {
     }
   };
 
+  const handleSpectrAILogin = () => {
+    // SpectrAI OAuth 登录 - 占位实现
+    setToastMessage("SpectrAI OAuth 登录功能即将上线");
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -83,7 +90,7 @@ export default function LoginPage() {
 
   return (
     <div className="container py-16 flex items-center justify-center min-h-[80vh]">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md relative">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">登录</CardTitle>
           <CardDescription className="text-center">
@@ -100,6 +107,17 @@ export default function LoginPage() {
           >
             <Github className="w-4 h-4 mr-2" />
             使用 GitHub 账户登录
+          </Button>
+
+          {/* SpectrAI 登录按钮 */}
+          <Button
+            type="button"
+            variant="gradient"
+            className="w-full"
+            onClick={handleSpectrAILogin}
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            使用 SpectrAI 账号登录
           </Button>
 
           <div className="relative">
@@ -178,6 +196,15 @@ export default function LoginPage() {
               立即注册
             </Link>
           </p>
+
+          {/* Toast 提示 */}
+          {toastMessage && (
+            <div className="absolute top-0 left-0 right-0 flex justify-center pt-4 pointer-events-none">
+              <div className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm shadow-lg">
+                {toastMessage}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

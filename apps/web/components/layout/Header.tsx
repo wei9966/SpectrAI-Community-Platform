@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Menu, X, User, LogOut, PlusCircle, LayoutGrid } from "lucide-react";
+import { Menu, X, User, LogOut, PlusCircle, LayoutGrid, Shield } from "lucide-react";
 import { NotificationBell } from "@/components/notification-bell";
 
 export function Header() {
@@ -13,15 +13,31 @@ export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
+  const [isAdmin, setIsAdmin] = React.useState(false);
 
-  // 检查登录状态
+  // 检查登录状态和管理员权限
   React.useEffect(() => {
     const token = localStorage.getItem('auth_token');
     setIsLoggedIn(!!token);
+
+    if (token) {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          setIsAdmin(user.role === 'admin' || user.role === 'moderator');
+        } catch {
+          setIsAdmin(false);
+        }
+      }
+    } else {
+      setIsAdmin(false);
+    }
   }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('user');
     setIsLoggedIn(false);
     setUserMenuOpen(false);
     window.location.reload();
@@ -87,6 +103,16 @@ export function Header() {
 
                 {userMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-48 rounded-md border bg-popover p-1 shadow-lg">
+                    {isAdmin && (
+                      <Link
+                        href="/admin/posts"
+                        className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Shield className="h-4 w-4" />
+                        后台管理
+                      </Link>
+                    )}
                     <Link
                       href="/user/me"
                       className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
@@ -159,6 +185,16 @@ export function Header() {
             {isLoggedIn ? (
               <>
                 <NotificationBell />
+                {isAdmin && (
+                  <Link
+                    href="/admin/posts"
+                    className="flex items-center gap-2 text-sm font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Shield className="h-4 w-4" />
+                    后台管理
+                  </Link>
+                )}
                 <Link
                   href="/user/me"
                   className="flex items-center gap-2 text-sm font-medium"

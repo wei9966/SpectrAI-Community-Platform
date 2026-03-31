@@ -3,88 +3,336 @@
 import * as React from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { Download, Heart, Calendar, Tag, User, Code, CheckCircle2, Star } from "lucide-react";
+import { Download, Heart, Calendar, Tag, User, Code, CheckCircle2, Star, AlertCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CommentSection } from "@/components/CommentSection";
 import { StarRating } from "@/components/star-rating";
 import { FavoriteButton } from "@/components/favorite-button";
-import { mockResources, mockComments, getResourceTypeLabel, getResourceTypeVariant } from "@/lib/mock-data";
-import { api } from "@/lib/api";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+
+// Inline type label/variant maps (replaces mock-data helpers)
+const typeLabels: Record<string, string> = {
+  team: 'Team',
+  workflow: '工作流',
+  skill: 'Skill',
+  mcp: 'MCP Server',
+};
+const typeVariants: Record<string, string> = {
+  team: 'default',
+  workflow: 'secondary',
+  skill: 'outline',
+  mcp: 'destructive',
+};
+
+interface ResourceData {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  tags: string[];
+  version: string;
+  downloads: number;
+  likes: number;
+  isPublished: boolean;
+  content: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    id: string;
+    username: string;
+    avatarUrl: string | null;
+  };
+  averageRating: string;
+  ratingCount: number;
+  isFavorited: boolean;
+  userRating: number | null;
+}
+
+interface CommentData {
+  id: string;
+  content: string;
+  userId: string;
+  createdAt: string;
+  author: {
+    username: string;
+    avatarUrl: string | null;
+  };
+}
+
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      headers['Authorization'] = 'Bearer ' + token;
+    }
+  }
+  return headers;
+}
+
+// ---- Loading skeleton ----
+function ResourceDetailSkeleton() {
+  return (
+    <div className="container py-8 md:py-12 animate-pulse">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+        <div className="lg:col-span-2 space-y-6">
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-6 w-20 bg-muted rounded" />
+              <div className="h-4 w-12 bg-muted rounded" />
+            </div>
+            <div className="h-10 w-3/4 bg-muted rounded mb-4" />
+            <div className="h-5 w-full bg-muted rounded mb-2" />
+            <div className="h-5 w-2/3 bg-muted rounded mb-6" />
+            <div className="flex gap-2 mb-6">
+              <div className="h-6 w-16 bg-muted rounded" />
+              <div className="h-6 w-16 bg-muted rounded" />
+              <div className="h-6 w-16 bg-muted rounded" />
+            </div>
+            <div className="flex gap-4">
+              <div className="h-11 w-40 bg-muted rounded" />
+              <div className="h-11 w-32 bg-muted rounded" />
+            </div>
+          </div>
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="h-5 w-24 bg-muted rounded" />
+            </CardHeader>
+            <CardContent>
+              <div className="h-4 w-full bg-muted rounded" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <div className="h-5 w-20 bg-muted rounded" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="h-16 w-full bg-muted rounded" />
+              <div className="h-16 w-full bg-muted rounded" />
+            </CardContent>
+          </Card>
+        </div>
+        <div className="space-y-6">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="h-5 w-24 bg-muted rounded" />
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="h-4 w-full bg-muted rounded" />
+                <div className="h-4 w-3/4 bg-muted rounded" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ResourceDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const [resource, setResource] = React.useState(mockResources.find((r) => r.id === id) || null);
-  const [comments, setComments] = React.useState(mockComments);
+
+  const [resource, setResource] = React.useState<ResourceData | null>(null);
+  const [comments, setComments] = React.useState<CommentData[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
   const [isLiked, setIsLiked] = React.useState(false);
+  const [likesCount, setLikesCount] = React.useState(0);
   const [isInstalling, setIsInstalling] = React.useState(false);
   const [showJsonPreview, setShowJsonPreview] = React.useState(false);
 
-  // 评分相关状态（后续 API 对接后从 props 传入）
-  const [userRating, setUserRating] = React.useState(0); // 当前用户评分
+  const [userRating, setUserRating] = React.useState(0);
   const [isFavorited, setIsFavorited] = React.useState(false);
-  // 模拟评分数据
-  const averageRating = (resource as any).averageRating ?? 4.2;
-  const ratingCount = (resource as any).ratingCount ?? 128;
+  const [averageRating, setAverageRating] = React.useState(0);
+  const [ratingCount, setRatingCount] = React.useState(0);
+  const [showSpectrAIHint, setShowSpectrAIHint] = React.useState(false);
+
+  // Fetch resource + comments on mount
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function fetchData() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const headers = getAuthHeaders();
+
+        const [resourceRes, commentsRes] = await Promise.all([
+          fetch(`${API_BASE}/api/resources/${id}`, { headers }),
+          fetch(`${API_BASE}/api/resources/${id}/comments`, { headers }),
+        ]);
+
+        if (!resourceRes.ok) {
+          if (resourceRes.status === 404) {
+            throw new Error('NOT_FOUND');
+          }
+          throw new Error(`Failed to fetch resource (${resourceRes.status})`);
+        }
+
+        const resourceJson = await resourceRes.json();
+        const commentsJson = await commentsRes.json();
+
+        if (cancelled) return;
+
+        // Handle resource – API may return { success, data } or raw object
+        const resData: ResourceData = resourceJson.data ?? resourceJson;
+        setResource(resData);
+        setLikesCount(resData.likes ?? 0);
+        setIsFavorited(resData.isFavorited ?? false);
+        setUserRating(resData.userRating ?? 0);
+        setAverageRating(parseFloat(String(resData.averageRating)) || 0);
+        setRatingCount(resData.ratingCount ?? 0);
+
+        // Handle comments
+        if (commentsJson.success && commentsJson.data?.items) {
+          setComments(commentsJson.data.items);
+        } else if (Array.isArray(commentsJson.data)) {
+          setComments(commentsJson.data);
+        } else if (Array.isArray(commentsJson)) {
+          setComments(commentsJson);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err.message ?? 'Unknown error');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchData();
+    return () => { cancelled = true; };
+  }, [id]);
+
+  // ---- Handlers ----
 
   const handleRatingChange = async (rating: number) => {
-    // TODO: API 对接后调用 POST /api/resources/:id/rate
-    console.log("Rating submitted:", rating);
-    setUserRating(rating);
+    try {
+      const res = await fetch(`${API_BASE}/api/resources/${id}/rate`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ rating }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUserRating(rating);
+        // Update average if the server returns it
+        if (data.averageRating !== undefined) {
+          setAverageRating(parseFloat(String(data.averageRating)) || averageRating);
+        }
+        if (data.ratingCount !== undefined) {
+          setRatingCount(data.ratingCount);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to submit rating:", err);
+    }
   };
 
   const handleFavoriteToggle = async () => {
-    // TODO: API 对接后调用 POST /api/resources/:id/favorite
-    console.log("Favorite toggled");
-    setIsFavorited(!isFavorited);
-    return true;
+    try {
+      const res = await fetch(`${API_BASE}/api/resources/${id}/favorite`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        setIsFavorited((prev) => !prev);
+        return true;
+      }
+    } catch (err) {
+      console.error("Failed to toggle favorite:", err);
+    }
+    return false;
   };
 
   const handleLike = async () => {
     try {
-      const result = await api.likeResource(id);
-      if (result.success) {
-        setIsLiked(!isLiked);
+      const res = await fetch(`${API_BASE}/api/resources/${id}/like`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        setIsLiked((prev) => {
+          const next = !prev;
+          setLikesCount((c) => c + (next ? 1 : -1));
+          return next;
+        });
       }
-    } catch (error) {
-      console.error("Failed to like:", error);
+    } catch (err) {
+      console.error("Failed to like:", err);
     }
   };
 
   const handleDownload = async () => {
+    if (!resource) return;
     setIsInstalling(true);
     try {
-      // 注意：后端没有专门的文件下载接口
-      // 实际应用中应该直接获取资源内容并触发浏览器下载
-      // 这里调用 resourcesApi.getById 获取资源数据
-      const result = await api.getResource(id);
-      if (result.success && result.data) {
-        // 演示：将资源配置作为 JSON 文件下载
-        const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' });
+      const res = await fetch(`${API_BASE}/api/resources/${id}`, {
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const data = json.data ?? json;
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${result.data.name}.json`;
+        a.download = `${data.name || resource.name}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
-    } catch (error) {
-      console.error("Failed to download:", error);
+    } catch (err) {
+      console.error("Failed to download:", err);
     } finally {
       setIsInstalling(false);
     }
   };
 
-  const handleAddComment = async (content: string) => {
-    // 实际应用中调用 API
-    console.log("Adding comment:", content);
+  const handleInstallToSpectrAI = () => {
+    if (!resource) return;
+    // 尝试 Deep Link
+    const deepLink = `spectrai://install/${resource.type}/${id}`;
+    window.location.href = deepLink;
+    // 设置 2 秒超时，检测是否跳转成功
+    setTimeout(() => {
+      // 如果没有离开页面，显示提示
+      if (!document.hidden) {
+        setShowSpectrAIHint(true);
+      }
+    }, 2000);
   };
 
-  const timeAgo = (date: Date) => {
+  const handleAddComment = async (content: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/resources/${id}/comments`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ content }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const newComment = json.data ?? json;
+        setComments((prev) => [newComment, ...prev]);
+      }
+    } catch (err) {
+      console.error("Failed to add comment:", err);
+    }
+  };
+
+  const timeAgo = (date: string | Date) => {
     const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
     const intervals: Record<string, number> = {
       year: 31536000,
@@ -104,6 +352,31 @@ export default function ResourceDetailPage() {
     return '刚刚';
   };
 
+  // ---- Loading state ----
+  if (isLoading) {
+    return <ResourceDetailSkeleton />;
+  }
+
+  // ---- Error state ----
+  if (error) {
+    const isNotFound = error === 'NOT_FOUND';
+    return (
+      <div className="container py-16 text-center">
+        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+        <h1 className="text-2xl font-bold mb-4">
+          {isNotFound ? '资源不存在' : '加载失败'}
+        </h1>
+        <p className="text-muted-foreground mb-8">
+          {isNotFound ? '该资源可能已被删除或移动' : `请稍后重试: ${error}`}
+        </p>
+        <Link href="/marketplace">
+          <Button>返回市场</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  // ---- Not found (no resource after loading) ----
   if (!resource) {
     return (
       <div className="container py-16 text-center">
@@ -118,17 +391,51 @@ export default function ResourceDetailPage() {
     );
   }
 
-  const variant = getResourceTypeVariant(resource.type);
+  const typeLabel = typeLabels[resource.type] || resource.type;
+  const variant = typeVariants[resource.type] || 'default';
+
+  // Map API comment shape to PublicComment shape expected by CommentSection
+  const mappedComments = comments.map((c) => ({
+    id: c.id,
+    resourceId: resource.id,
+    user: {
+      id: c.userId ?? c.author?.username ?? '',
+      username: c.author?.username ?? 'Unknown',
+      avatarUrl: c.author?.avatarUrl ?? null,
+    },
+    content: c.content,
+    createdAt: new Date(c.createdAt),
+  }));
 
   return (
     <div className="container py-8 md:py-12">
+      {/* 安装提示弹窗 */}
+      {showSpectrAIHint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg p-6 max-w-md mx-4 shadow-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <Sparkles className="w-6 h-6 text-purple-500" />
+              <h3 className="text-lg font-semibold">未检测到 SpectrAI 客户端</h3>
+            </div>
+            <p className="text-muted-foreground mb-6">
+              请先安装 SpectrAI 桌面端，然后再尝试安装此资源。
+            </p>
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={() => setShowSpectrAIHint(false)}>
+                知道了
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 资源头部 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         {/* 主要信息 */}
         <div className="lg:col-span-2 space-y-6">
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <Badge variant={variant as any}>{getResourceTypeLabel(resource.type)}</Badge>
+              <Badge variant={variant as any}>{typeLabel}</Badge>
               <span className="text-sm text-muted-foreground">v{resource.version}</span>
             </div>
             <h1 className="text-3xl md:text-4xl font-bold mb-4">{resource.name}</h1>
@@ -151,12 +458,21 @@ export default function ResourceDetailPage() {
                 {isInstalling ? "下载中..." : "下载 / 安装"}
               </Button>
               <Button
+                variant="outline"
+                size="lg"
+                onClick={handleInstallToSpectrAI}
+                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white border-0 hover:opacity-90"
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                安装到 SpectrAI
+              </Button>
+              <Button
                 variant={isLiked ? "default" : "outline"}
                 size="lg"
                 onClick={handleLike}
               >
                 <Heart className={`w-4 h-4 mr-2 ${isLiked ? "fill-current" : ""}`} />
-                喜欢 ({resource.likes + (isLiked ? 1 : 0)})
+                喜欢 ({likesCount})
               </Button>
             </div>
           </div>
@@ -193,7 +509,7 @@ export default function ResourceDetailPage() {
 
           {/* 评论区 */}
           <CommentSection
-            comments={comments}
+            comments={mappedComments}
             resourceId={resource.id}
             onAddComment={handleAddComment}
           />
@@ -225,7 +541,7 @@ export default function ResourceDetailPage() {
                 <span className="text-muted-foreground">喜欢数</span>
                 <span className="font-medium flex items-center gap-2">
                   <Heart className="w-4 h-4" />
-                  {resource.likes.toLocaleString()}
+                  {likesCount.toLocaleString()}
                 </span>
               </div>
               <div className="flex items-center justify-between">

@@ -19,7 +19,15 @@ const app = new Hono();
 
 // ── Global middleware ────────────────────────────────────────
 app.use("*", cors({
-  origin: ["http://localhost:3000", "http://localhost:5173"],
+  origin: (origin) => {
+    const allowed = [
+      "http://localhost:3000",
+      "http://localhost:5173",
+      process.env.NEXT_PUBLIC_APP_URL,
+    ].filter(Boolean);
+    if (!origin || allowed.includes(origin)) return origin;
+    return null;
+  },
   credentials: true,
 }));
 app.use("*", requestLogger);

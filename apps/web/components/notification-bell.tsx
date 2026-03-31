@@ -49,103 +49,36 @@ export function NotificationBell({ className }: NotificationBellProps) {
   // 检查登录状态
   const isLoggedIn = typeof window !== 'undefined' && !!localStorage.getItem('auth_token');
 
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+
   // 获取通知
   const fetchNotifications = React.useCallback(async () => {
     if (!isLoggedIn) return;
 
     setIsLoading(true);
     try {
-      // TODO: API 对接后替换为实际 API 调用
-      // const response = await fetch('/api/notifications?unread=true&limit=5');
-      // const data = await response.json();
-
-      // Mock 数据
-      const mockNotifications: NotificationWithSender[] = [
-        {
-          id: 'n1',
-          userId: 'u1',
-          type: 'rating',
-          title: '收到评分',
-          content: '您的资源获得了 5 星评分',
-          relatedId: 'r1',
-          relatedType: 'resource',
-          fromUserId: 'u2',
-          isRead: false,
-          createdAt: new Date(Date.now() - 3 * 60 * 1000),
-          fromUser: {
-            id: 'u2',
-            username: 'DataWizard',
-            avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DataWizard',
-          },
-        },
-        {
-          id: 'n2',
-          userId: 'u1',
-          type: 'favorite',
-          title: '收到收藏',
-          content: 'DevMaster 收藏了您的资源',
-          relatedId: 'r1',
-          relatedType: 'resource',
-          fromUserId: 'u3',
-          isRead: false,
-          createdAt: new Date(Date.now() - 15 * 60 * 1000),
-          fromUser: {
-            id: 'u3',
-            username: 'DevMaster',
-            avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DevMaster',
-          },
-        },
-        {
-          id: 'n3',
-          userId: 'u1',
-          type: 'reply',
-          title: '新回复',
-          content: 'AgentExpert 回复了您的帖子',
-          relatedId: 'p1',
-          relatedType: 'post',
-          fromUserId: 'u4',
-          isRead: false,
-          createdAt: new Date(Date.now() - 30 * 60 * 1000),
-          fromUser: {
-            id: 'u4',
-            username: 'AgentExpert',
-            avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AgentExpert',
-          },
-        },
-        {
-          id: 'n4',
-          userId: 'u1',
-          type: 'like',
-          title: '收到点赞',
-          content: '您的内容收到了 10 个赞',
-          relatedId: 'p1',
-          relatedType: 'post',
-          fromUserId: null,
-          isRead: true,
-          createdAt: new Date(Date.now() - 60 * 60 * 1000),
-          fromUser: null,
-        },
-        {
-          id: 'n5',
-          userId: 'u1',
-          type: 'best_answer',
-          title: '最佳答案',
-          content: '您的回复被标记为最佳答案',
-          relatedId: 'p1',
-          relatedType: 'post',
-          fromUserId: 'u5',
-          isRead: true,
-          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-          fromUser: {
-            id: 'u5',
-            username: 'TechLead',
-            avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=TechLead',
-          },
-        },
-      ];
-
-      setNotifications(mockNotifications);
-      setUnreadCount(mockNotifications.filter((n) => !n.isRead).length);
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_BASE}/api/notifications?limit=5`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        const items = (data.data?.items || []).map((n: any) => ({
+          id: n.id,
+          userId: n.userId,
+          type: n.type || 'system',
+          title: n.title || '',
+          content: n.content || n.title || '',
+          relatedId: n.relatedId || n.link || null,
+          relatedType: n.relatedType || null,
+          fromUserId: n.fromUserId || null,
+          isRead: n.isRead,
+          createdAt: new Date(n.createdAt),
+          fromUser: n.actor || n.fromUser || null,
+        }));
+        setNotifications(items);
+        setUnreadCount(data.data?.unreadCount ?? items.filter((n: any) => !n.isRead).length);
+      }
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     } finally {
@@ -186,7 +119,11 @@ export function NotificationBell({ className }: NotificationBellProps) {
   // 标记全部已读
   const handleMarkAllRead = async () => {
     try {
-      // TODO: API 对接后调用 PATCH /api/notifications/read-all
+      const token = localStorage.getItem('auth_token');
+      await fetch(`${API_BASE}/api/notifications/read-all`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (error) {

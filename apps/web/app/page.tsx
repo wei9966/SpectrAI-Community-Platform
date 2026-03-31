@@ -32,7 +32,7 @@ export default function HomePage() {
     const headers: HeadersInit = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
-    fetch(`${API_BASE}/api/rankings?period=week&sort=comprehensive&limit=4`, { headers })
+    fetch(`${API_BASE}/api/rankings/resources?period=all&sort=rating&limit=4`, { headers })
       .then(res => res.json())
       .then(data => {
         if (data.success && data.data?.items) {

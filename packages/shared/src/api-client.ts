@@ -1,11 +1,15 @@
 import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, AuthResponse, SearchParams, PaginationInfo } from './types/api';
 import type { Resource, PublicResource, CreateResourceInput, UpdateResourceInput, ResourceType } from './types/resource';
 import type { User, PublicUser, UpdateUserInput } from './types/user';
+import type { ForumPost, ForumPostDetail, ForumReplyFlat, CreatePostInput, CreateReplyInput } from './types/forum';
 
 // API base URL - use environment variable or default to localhost
-const API_BASE_URL = typeof process !== 'undefined'
-  ? (process.env?.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api')
-  : (window?.location?.origin + '/api' || 'http://localhost:3001/api');
+// NEXT_PUBLIC_API_URL points to the API server root (e.g. http://host:3101),
+// all endpoints in this client omit the /api prefix, so we append it here.
+const _raw = typeof process !== 'undefined'
+  ? (process.env?.NEXT_PUBLIC_API_URL || 'http://localhost:3001')
+  : (window?.location?.origin || 'http://localhost:3001');
+const API_BASE_URL = _raw.endsWith('/api') ? _raw : `${_raw.replace(/\/+$/, '')}/api`;
 
 /**
  * Custom API Error class
@@ -161,6 +165,10 @@ export const resourcesApi = {
     return fetchApi<{ favorited: boolean }>(`/resources/${id}/favorite`, {
       method: 'POST',
     });
+  },
+
+  async getInstallManifest(id: string): Promise<ApiResponse<InstallManifest>> {
+    return fetchApi<InstallManifest>(`/resources/${id}/install-manifest`);
   },
 };
 
@@ -448,6 +456,73 @@ export const notificationsApi = {
 
   async delete(id: string): Promise<ApiResponse<{ message: string }>> {
     return fetchApi(`/notifications/${id}`, { method: 'DELETE' });
+  },
+};
+
+/**
+ * Forum API client
+ */
+export interface PendingPost {
+  id: string;
+  title: string;
+  content: string;
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  author: {
+    id: string;
+    username: string;
+    avatarUrl: string | null;
+  };
+  createdAt: string;
+  status: 'pending';
+}
+
+export interface InstallManifest {
+  type: string;
+  name: string;
+  version: string;
+  installUrl: string;
+  content: Record<string, unknown>;
+}
+
+export const forumApi = {
+  async getPendingPosts(): Promise<ApiResponse<PendingPost[]>> {
+    return fetchApi<PendingPost[]>('/forum/posts/pending');
+  },
+
+  async reviewPost(id: string, action: 'approve' | 'reject', reason?: string): Promise<ApiResponse<{ id: string; status: string }>> {
+    return fetchApi(`/forum/posts/${id}/review`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action, reason }),
+    });
+  },
+
+  async createPost(input: CreatePostInput): Promise<ApiResponse<ForumPost>> {
+    return fetchApi<ForumPost>('/forum/posts', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  async getPost(id: string): Promise<ApiResponse<ForumPostDetail>> {
+    return fetchApi<ForumPostDetail>(`/forum/posts/${id}`);
+  },
+
+  async getPostsByCategory(categorySlug: string, params?: { page?: number; limit?: number }): Promise<PaginatedResponse<ForumPostDetail>> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    return fetchApi(`/forum/${categorySlug}?${searchParams}`) as Promise<PaginatedResponse<ForumPostDetail>>;
+  },
+
+  async createReply(input: CreateReplyInput): Promise<ApiResponse<ForumReplyFlat>> {
+    return fetchApi<ForumReplyFlat>('/forum/replies', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
   },
 };
 

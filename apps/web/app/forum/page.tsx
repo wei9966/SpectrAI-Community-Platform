@@ -79,7 +79,7 @@ export default function ForumPage() {
             setCategories(Array.isArray(data.data) ? data.data : data.data?.items || []);
           }
         }),
-      fetch(`${API_BASE}/api/forum/posts?limit=5&sort=latest`, { headers })
+      fetch(`${API_BASE}/api/forum/posts?limit=5&sort=newest`, { headers })
         .then(res => res.json())
         .then(data => {
           if (data.success) {

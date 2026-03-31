@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, X, Loader2, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,19 +25,14 @@ interface Category {
   slug: string;
 }
 
-const mockCategories: Category[] = [
-  { id: 'c1', name: '综合讨论', slug: 'general' },
-  { id: 'c2', name: '资源分享', slug: 'showcase' },
-  { id: 'c3', name: '功能建议', slug: 'feature-requests' },
-  { id: 'c4', name: '问题求助', slug: 'help' },
-  { id: 'c5', name: '公告', slug: 'announcements' },
-  { id: 'c6', name: '开发者社区', slug: 'developers' },
-];
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export default function NewPostPage() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isSubmitted, setIsSubmitted] = React.useState(false);
+  const [categories, setCategories] = React.useState<Category[]>([]);
   const [formData, setFormData] = React.useState<FormData>({
     title: '',
     content: '',
@@ -51,9 +46,20 @@ export default function NewPostPage() {
     const token = localStorage.getItem('auth_token');
     if (!token) {
       setIsAuthenticated(false);
-    } else {
-      setIsAuthenticated(true);
+      return;
     }
+    setIsAuthenticated(true);
+
+    fetch(`${API_BASE}/api/forum/categories`, {
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data)) {
+          setCategories(data.data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const validateForm = (): boolean => {
@@ -111,14 +117,26 @@ export default function NewPostPage() {
     setIsSubmitting(true);
 
     try {
-      // TODO: API 对接后调用 POST /api/forum/posts
-      console.log('Submitting post:', formData);
-
-      // 模拟提交
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // 提交成功后跳转
-      router.push('/forum');
+      const token = localStorage.getItem('auth_token');
+      const res = await fetch(`${API_BASE}/api/forum/posts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: formData.title,
+          content: formData.content,
+          categoryId: formData.categoryId,
+          tags: formData.tags.length > 0 ? formData.tags : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsSubmitted(true);
+      } else {
+        setErrors({ title: data.error || '提交失败，请重试' });
+      }
     } catch (error) {
       console.error('Failed to submit:', error);
       setErrors({ title: '提交失败，请重试' });
@@ -126,6 +144,45 @@ export default function NewPostPage() {
       setIsSubmitting(false);
     }
   };
+
+  // 提交成功页面
+  if (isSubmitted) {
+    return (
+      <div className="container py-16 text-center max-w-2xl mx-auto">
+        <div className="mb-6 flex justify-center">
+          <div className="rounded-full bg-green-100 p-4">
+            <CheckCircle className="w-16 h-16 text-green-600" />
+          </div>
+        </div>
+        <h1 className="text-3xl font-bold mb-4">帖子已提交</h1>
+        <p className="text-xl text-muted-foreground mb-8">
+          您的帖子已提交，等待管理员审核
+        </p>
+        <div className="flex justify-center gap-4">
+          <Link href="/forum">
+            <Button variant="outline" size="lg">
+              返回论坛
+            </Button>
+          </Link>
+          <Button
+            variant="gradient"
+            size="lg"
+            onClick={() => {
+              setIsSubmitted(false);
+              setFormData({
+                title: '',
+                content: '',
+                categoryId: '',
+                tags: [],
+              });
+            }}
+          >
+            继续发帖
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -167,7 +224,7 @@ export default function NewPostPage() {
                 选择板块 <span className="text-destructive">*</span>
               </Label>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {mockCategories.map((category) => (
+                {categories.map((category) => (
                   <button
                     key={category.id}
                     type="button"

@@ -4,141 +4,390 @@ import * as React from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { Calendar, FileText, Heart, Download, Star, Clock, MessageSquare, Bookmark } from "lucide-react";
+import {
+  Calendar,
+  FileText,
+  Heart,
+  Download,
+  Star,
+  Clock,
+  MessageSquare,
+  Bookmark,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ResourceCard } from "@/components/ResourceCard";
 import { Pagination } from "@/components/Pagination";
 import { StarRating } from "@/components/star-rating";
 import { cn } from "@/lib/utils";
-import { mockUser, mockResources, mockComments } from "@/lib/mock-data";
-import type { PublicUser, PublicResource } from "@spectrai-community/shared";
+import type { PublicResource, PublicComment } from "@spectrai-community/shared";
 
-// 模拟活动时间线数据
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface UserProfile {
+  id: string;
+  username: string;
+  avatarUrl: string | null;
+  bio: string | null;
+  createdAt: string;
+  resourceCount: number;
+}
+
+interface UserStats {
+  downloads: number;
+  likes: number;
+  rating: number;
+  ratingCount: number;
+}
+
 interface ActivityItem {
   id: string;
-  type: 'resource' | 'like' | 'comment' | 'rating' | 'favorite';
+  type: "resource" | "like" | "comment" | "rating" | "favorite";
   title: string;
   description: string;
-  timestamp: Date;
+  timestamp: string;
   resourceId?: string;
 }
 
-const mockActivities: ActivityItem[] = [
-  {
-    id: '1',
-    type: 'resource',
-    title: '发布了新资源',
-    description: 'SpectrAI 多会话编排 Workflow',
-    timestamp: new Date('2025-03-28T15:30:00Z'),
-    resourceId: '1',
-  },
-  {
-    id: '2',
-    type: 'rating',
-    title: '收到评分',
-    description: '您收到了 5 星评分',
-    timestamp: new Date('2025-03-27T10:00:00Z'),
-    resourceId: '1',
-  },
-  {
-    id: '3',
-    type: 'comment',
-    title: '收到评论',
-    description: 'DevUser123 评论了您的资源',
-    timestamp: new Date('2025-03-26T09:00:00Z'),
-    resourceId: '1',
-  },
-  {
-    id: '4',
-    type: 'like',
-    title: '收到点赞',
-    description: '您的资源被点赞 +10',
-    timestamp: new Date('2025-03-25T14:00:00Z'),
-    resourceId: '1',
-  },
-  {
-    id: '5',
-    type: 'favorite',
-    title: '被收藏',
-    description: '您的工作流被收藏到精选集',
-    timestamp: new Date('2025-03-24T11:00:00Z'),
-    resourceId: '1',
-  },
-];
+interface PaginatedResources {
+  items: PublicResource[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// API helpers
+// ---------------------------------------------------------------------------
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      headers["Authorization"] = "Bearer " + token;
+    }
+  }
+  return headers;
+}
+
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() });
+  if (!res.ok) {
+    throw new Error(`API ${path} responded with ${res.status}`);
+  }
+  const json = await res.json();
+  if (json.success === false) {
+    throw new Error(json.error || `API ${path} failed`);
+  }
+  return (json.data !== undefined ? json.data : json) as T;
+}
+
+// ---------------------------------------------------------------------------
+// Time formatting (Chinese)
+// ---------------------------------------------------------------------------
+
+function timeAgo(date: string | Date): string {
+  const seconds = Math.floor(
+    (Date.now() - new Date(date).getTime()) / 1000
+  );
+  const intervals: [string, number][] = [
+    ["年", 31536000],
+    ["月", 2592000],
+    ["天", 86400],
+    ["小时", 3600],
+    ["分钟", 60],
+  ];
+  for (const [label, secs] of intervals) {
+    const count = Math.floor(seconds / secs);
+    if (count >= 1) return `${count}${label}前`;
+  }
+  return "刚刚";
+}
+
+function formatDate(date: string | Date): string {
+  return new Date(date).toLocaleDateString("zh-CN", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Activity icon helper
+// ---------------------------------------------------------------------------
+
+function getActivityIcon(type: ActivityItem["type"]) {
+  switch (type) {
+    case "resource":
+      return <FileText className="w-4 h-4 text-blue-500" />;
+    case "like":
+      return <Heart className="w-4 h-4 text-red-500" />;
+    case "comment":
+      return <MessageSquare className="w-4 h-4 text-green-500" />;
+    case "rating":
+      return <Star className="w-4 h-4 text-yellow-500" />;
+    case "favorite":
+      return <Bookmark className="w-4 h-4 text-purple-500" />;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton components
+// ---------------------------------------------------------------------------
+
+function SkeletonBlock({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn("animate-pulse rounded-md bg-muted/60", className)}
+    />
+  );
+}
+
+function ProfileSkeleton() {
+  return (
+    <div className="container py-8 md:py-12">
+      {/* Header skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
+        <Card className="lg:col-span-1">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <SkeletonBlock className="w-24 h-24 rounded-full mx-auto" />
+              <SkeletonBlock className="h-6 w-32 mx-auto" />
+              <SkeletonBlock className="h-4 w-48 mx-auto" />
+              <SkeletonBlock className="h-4 w-24 mx-auto" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <SkeletonBlock className="h-5 w-20" />
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <SkeletonBlock key={i} className="h-20 rounded-lg" />
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-border">
+              <SkeletonBlock className="h-5 w-40" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Activity skeleton */}
+      <Card className="mb-8">
+        <CardHeader>
+          <SkeletonBlock className="h-5 w-28" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-4">
+              <SkeletonBlock className="w-8 h-8 rounded-full shrink-0" />
+              <div className="flex-1 space-y-2">
+                <SkeletonBlock className="h-4 w-48" />
+                <SkeletonBlock className="h-3 w-64" />
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Tabs skeleton */}
+      <div className="flex border-b border-border mb-6 gap-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonBlock key={i} className="h-9 w-24" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SkeletonBlock key={i} className="h-52 rounded-lg" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page component
+// ---------------------------------------------------------------------------
 
 export default function UserProfilePage() {
   const params = useParams();
   const username = params.username as string;
 
-  // 状态
-  const [user, setUser] = React.useState<PublicUser | null>(mockUser);
-  const [userResources, setUserResources] = React.useState<PublicResource[]>(
-    mockResources.filter((r) => r.author.username === mockUser.username)
-  );
-  const [currentPage, setCurrentPage] = React.useState(1);
+  // ---- Core state ----
+  const [user, setUser] = React.useState<UserProfile | null>(null);
+  const [stats, setStats] = React.useState<UserStats | null>(null);
+  const [activities, setActivities] = React.useState<ActivityItem[]>([]);
+  const [resources, setResources] = React.useState<PublicResource[]>([]);
+  const [resourceTotal, setResourceTotal] = React.useState(0);
+  const [resourceTotalPages, setResourceTotalPages] = React.useState(1);
+  const [likedResources, setLikedResources] = React.useState<PublicResource[]>([]);
+  const [comments, setComments] = React.useState<PublicComment[]>([]);
+
+  // ---- UI state ----
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [activeTab, setActiveTab] = React.useState("resources");
+  const [currentPage, setCurrentPage] = React.useState(1);
   const itemsPerPage = 6;
 
-  // 模拟数据（后续 API 对接后从 props 传入）
-  const likedResources = mockResources.slice(0, 3); // 模拟点赞的资源
-  const favoritedResources = mockResources.slice(1, 4); // 模拟收藏的资源
-  const userComments = mockComments; // 模拟用户的评论
-  const totalDownloads = userResources.reduce((sum, r) => sum + r.downloads, 0);
-  const totalLikes = userResources.reduce((sum, r) => sum + r.likes, 0);
-  const averageRating = 4.5; // 模拟平均评分
-  const ratingCount = 42; // 模拟评分人数
-  const memberDays = Math.floor((new Date().getTime() - new Date(user?.createdAt || new Date()).getTime()) / (1000 * 60 * 60 * 24));
+  // --------------------------------------------------------------------
+  // Step 1: Fetch user profile by username
+  // Step 2: Once we have the user ID, fetch everything else in parallel
+  // --------------------------------------------------------------------
 
-  const totalPages = Math.ceil(userResources.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedResources = userResources.slice(startIndex, endIndex);
+  React.useEffect(() => {
+    let cancelled = false;
 
-  const timeAgo = (date: Date) => {
-    const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
-    const intervals: Record<string, number> = {
-      year: 31536000,
-      month: 2592000,
-      week: 604800,
-      day: 86400,
-      hour: 3600,
-      minute: 60,
-    };
+    async function load() {
+      setLoading(true);
+      setError(null);
 
-    for (const [unit, secondsInUnit] of Object.entries(intervals)) {
-      const interval = Math.floor(seconds / secondsInUnit);
-      if (interval >= 1) {
-        return `${interval}${unit === 'year' ? '年' : unit === 'month' ? '个月' : unit === 'week' ? '周' : unit === 'day' ? '天' : unit === 'hour' ? '小时' : '分钟'}前`;
+      try {
+        // Step 1 -- get the user profile by username
+        const profile = await apiFetch<UserProfile>(
+          `/api/users/${encodeURIComponent(username)}`
+        );
+
+        if (cancelled) return;
+        setUser(profile);
+
+        // Step 2 -- parallel fetches that need the user id
+        const userId = profile.id;
+
+        const results = await Promise.allSettled([
+            apiFetch<UserStats>(`/api/users/${userId}/stats`),
+            apiFetch<ActivityItem[]>(`/api/users/${userId}/activity`),
+            apiFetch<PaginatedResources>(
+              `/api/users/${encodeURIComponent(username)}/resources?page=1&limit=${itemsPerPage}`
+            ),
+            apiFetch<PublicResource[]>(`/api/users/${userId}/likes`),
+            apiFetch<PublicComment[]>(`/api/users/${userId}/comments`),
+          ]);
+
+        if (cancelled) return;
+
+        if (results[0].status === "fulfilled") setStats(results[0].value);
+        if (results[1].status === "fulfilled") setActivities(Array.isArray(results[1].value) ? results[1].value : []);
+        if (results[2].status === "fulfilled") {
+          const rd = results[2].value;
+          const author = { id: profile.id, username: profile.username, avatarUrl: profile.avatarUrl };
+          setResources((rd?.items || []).map((r: any) => ({ ...r, author: r.author || author })));
+          setResourceTotal(rd?.pagination?.total || 0);
+          setResourceTotalPages(rd?.pagination?.totalPages || 1);
+        }
+        if (results[3].status === "fulfilled") {
+          const lv = results[3].value;
+          setLikedResources(Array.isArray(lv) ? lv : (lv as any)?.items || []);
+        }
+        if (results[4].status === "fulfilled") setComments(Array.isArray(results[4].value) ? results[4].value : []);
+      } catch (err: unknown) {
+        if (!cancelled) {
+          setError(
+            err instanceof Error ? err.message : "加载用户信息失败，请稍后重试"
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
-    return '刚刚';
-  };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('zh-CN', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [username]);
 
-  const getActivityIcon = (type: ActivityItem['type']) => {
-    switch (type) {
-      case 'resource':
-        return <FileText className="w-4 h-4 text-blue-500" />;
-      case 'like':
-        return <Heart className="w-4 h-4 text-red-500" />;
-      case 'comment':
-        return <MessageSquare className="w-4 h-4 text-green-500" />;
-      case 'rating':
-        return <Star className="w-4 h-4 text-yellow-500" />;
-      case 'favorite':
-        return <Bookmark className="w-4 h-4 text-purple-500" />;
+  // ---- Paginate resources on page change ----
+
+  React.useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    async function fetchPage() {
+      try {
+        const data = await apiFetch<PaginatedResources>(
+          `/api/users/${encodeURIComponent(username)}/resources?page=${currentPage}&limit=${itemsPerPage}`
+        );
+        if (!cancelled) {
+          const author = { id: user.id, username: user.username, avatarUrl: user.avatarUrl };
+          setResources((data.items || []).map((r: any) => ({ ...r, author: r.author || author })));
+          setResourceTotal(data.pagination.total);
+          setResourceTotalPages(data.pagination.totalPages);
+        }
+      } catch {
+        // keep existing data on pagination failure
+      }
     }
-  };
 
+    // skip initial fetch (already done in the main effect)
+    if (currentPage !== 1 || resources.length === 0) {
+      fetchPage();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
+
+  // ---- Derived values ----
+  const memberDays = user
+    ? Math.floor(
+        (Date.now() - new Date(user.createdAt).getTime()) /
+          (1000 * 60 * 60 * 24)
+      )
+    : 0;
+
+  // ------------------------------------------------------------------
+  // Loading state
+  // ------------------------------------------------------------------
+  if (loading) {
+    return <ProfileSkeleton />;
+  }
+
+  // ------------------------------------------------------------------
+  // Error state
+  // ------------------------------------------------------------------
+  if (error) {
+    return (
+      <div className="container py-16 text-center">
+        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-destructive" />
+        <h1 className="text-2xl font-bold mb-2">加载失败</h1>
+        <p className="text-muted-foreground mb-8">{error}</p>
+        <div className="flex items-center justify-center gap-4">
+          <Button
+            variant="outline"
+            onClick={() => window.location.reload()}
+          >
+            重试
+          </Button>
+          <Link href="/marketplace">
+            <Button>返回市场</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Not-found state
+  // ------------------------------------------------------------------
   if (!user) {
     return (
       <div className="container py-16 text-center">
@@ -153,11 +402,14 @@ export default function UserProfilePage() {
     );
   }
 
+  // ------------------------------------------------------------------
+  // Render
+  // ------------------------------------------------------------------
   return (
     <div className="container py-8 md:py-12">
-      {/* 用户信息头部 */}
+      {/* ========== Header: profile card + stats ========== */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-8">
-        {/* 个人信息卡片 */}
+        {/* Profile card */}
         <Card className="lg:col-span-1">
           <CardContent className="pt-6">
             <div className="text-center">
@@ -165,7 +417,7 @@ export default function UserProfilePage() {
                 <img
                   src={user.avatarUrl}
                   alt={user.username}
-                  className="w-24 h-24 rounded-full mx-auto mb-4"
+                  className="w-24 h-24 rounded-full mx-auto mb-4 object-cover"
                 />
               ) : (
                 <div className="w-24 h-24 rounded-full mx-auto mb-4 bg-gradient-primary flex items-center justify-center">
@@ -178,7 +430,9 @@ export default function UserProfilePage() {
               <h1 className="text-xl font-bold mb-2">{user.username}</h1>
 
               {user.bio && (
-                <p className="text-sm text-muted-foreground mb-4">{user.bio}</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {user.bio}
+                </p>
               )}
 
               <div className="space-y-2 text-sm text-muted-foreground">
@@ -191,7 +445,7 @@ export default function UserProfilePage() {
           </CardContent>
         </Card>
 
-        {/* 统计面板 */}
+        {/* Stats panel */}
         <Card className="lg:col-span-3">
           <CardHeader>
             <h3 className="font-semibold">数据统计</h3>
@@ -204,7 +458,9 @@ export default function UserProfilePage() {
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">发布的资源</div>
-                  <div className="text-xl font-bold">{userResources.length}</div>
+                  <div className="text-xl font-bold">
+                    {user.resourceCount}
+                  </div>
                 </div>
               </div>
 
@@ -214,7 +470,9 @@ export default function UserProfilePage() {
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">总下载数</div>
-                  <div className="text-xl font-bold">{totalDownloads.toLocaleString()}</div>
+                  <div className="text-xl font-bold">
+                    {(stats?.downloads ?? 0).toLocaleString()}
+                  </div>
                 </div>
               </div>
 
@@ -224,7 +482,9 @@ export default function UserProfilePage() {
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">总获赞</div>
-                  <div className="text-xl font-bold">{totalLikes.toLocaleString()}</div>
+                  <div className="text-xl font-bold">
+                    {(stats?.likes ?? 0).toLocaleString()}
+                  </div>
                 </div>
               </div>
 
@@ -235,23 +495,27 @@ export default function UserProfilePage() {
                 <div>
                   <div className="text-sm text-muted-foreground">平均评分</div>
                   <div className="flex items-center gap-1">
-                    <span className="text-xl font-bold">{averageRating.toFixed(1)}</span>
-                    <span className="text-xs text-muted-foreground">({ratingCount}人)</span>
+                    <span className="text-xl font-bold">
+                      {(stats?.rating ?? 0).toFixed(1)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      ({stats?.ratingCount ?? 0}人)
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* 简短评分展示 */}
+            {/* Star rating display */}
             <div className="mt-4 pt-4 border-t border-border flex items-center gap-2">
               <span className="text-sm text-muted-foreground">综合评分：</span>
-              <StarRating value={averageRating} size="sm" readOnly />
+              <StarRating value={stats?.rating ?? 0} size="sm" readOnly />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* 活动时间线 */}
+      {/* ========== Activity timeline ========== */}
       <Card className="mb-8">
         <CardHeader>
           <h3 className="font-semibold flex items-center gap-2">
@@ -260,39 +524,44 @@ export default function UserProfilePage() {
           </h3>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {mockActivities.map((activity, index) => (
-              <div key={activity.id} className="flex items-start gap-4">
-                <div className="mt-1 p-2 rounded-full bg-secondary">
-                  {getActivityIcon(activity.type)}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{activity.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {timeAgo(activity.timestamp)}
-                    </span>
+          {activities.length > 0 ? (
+            <div className="space-y-4">
+              {activities.map((activity, index) => (
+                <div key={activity.id} className="flex items-start gap-4">
+                  <div className="mt-1 p-2 rounded-full bg-secondary">
+                    {getActivityIcon(activity.type)}
                   </div>
-                  <p className="text-sm text-muted-foreground">{activity.description}</p>
-                  {activity.resourceId && (
-                    <Link
-                      href={`/resource/${activity.resourceId}`}
-                      className="text-sm text-primary hover:underline mt-1 inline-block"
-                    >
-                      查看资源
-                    </Link>
-                  )}
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{activity.title}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {timeAgo(activity.timestamp)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {activity.description}
+                    </p>
+                    {activity.resourceId && (
+                      <Link
+                        href={`/resource/${activity.resourceId}`}
+                        className="text-sm text-primary hover:underline mt-1 inline-block"
+                      >
+                        查看资源
+                      </Link>
+                    )}
+                  </div>
                 </div>
-                {index < mockActivities.length - 1 && (
-                  <div className="absolute left-7 top-10 w-px h-full bg-border/50 -z-10" />
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              暂无活动记录
+            </p>
+          )}
         </CardContent>
       </Card>
 
-      {/* Tabs 区域 */}
+      {/* ========== Tabs ========== */}
       <TabsPrimitive.Root value={activeTab} onValueChange={setActiveTab}>
         <TabsPrimitive.List className="flex border-b border-border mb-6">
           <TabsPrimitive.Trigger
@@ -307,9 +576,10 @@ export default function UserProfilePage() {
             <FileText className="w-4 h-4 mr-2 inline" />
             我的资源
             <span className="ml-2 text-xs bg-secondary px-1.5 py-0.5 rounded-full">
-              {userResources.length}
+              {resourceTotal}
             </span>
           </TabsPrimitive.Trigger>
+
           <TabsPrimitive.Trigger
             value="likes"
             className={cn(
@@ -325,6 +595,7 @@ export default function UserProfilePage() {
               {likedResources.length}
             </span>
           </TabsPrimitive.Trigger>
+
           <TabsPrimitive.Trigger
             value="comments"
             className={cn(
@@ -337,9 +608,10 @@ export default function UserProfilePage() {
             <MessageSquare className="w-4 h-4 mr-2 inline" />
             评论
             <span className="ml-2 text-xs bg-secondary px-1.5 py-0.5 rounded-full">
-              {userComments.length}
+              {comments.length}
             </span>
           </TabsPrimitive.Trigger>
+
           <TabsPrimitive.Trigger
             value="favorites"
             className={cn(
@@ -351,26 +623,23 @@ export default function UserProfilePage() {
           >
             <Bookmark className="w-4 h-4 mr-2 inline" />
             收藏
-            <span className="ml-2 text-xs bg-secondary px-1.5 py-0.5 rounded-full">
-              {favoritedResources.length}
-            </span>
           </TabsPrimitive.Trigger>
         </TabsPrimitive.List>
 
-        {/* 我的资源 Tab */}
+        {/* ---- Resources tab ---- */}
         <TabsPrimitive.Content value="resources">
-          {paginatedResources.length > 0 ? (
+          {resources.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                {paginatedResources.map((resource) => (
+                {resources.map((resource) => (
                   <ResourceCard key={resource.id} resource={resource} />
                 ))}
               </div>
 
-              {totalPages > 1 && (
+              {resourceTotalPages > 1 && (
                 <Pagination
                   currentPage={currentPage}
-                  totalPages={totalPages}
+                  totalPages={resourceTotalPages}
                   onPageChange={setCurrentPage}
                 />
               )}
@@ -384,12 +653,16 @@ export default function UserProfilePage() {
           )}
         </TabsPrimitive.Content>
 
-        {/* 点赞 Tab */}
+        {/* ---- Likes tab ---- */}
         <TabsPrimitive.Content value="likes">
           {likedResources.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {likedResources.map((resource) => (
-                <ResourceCard key={resource.id} resource={resource} showRating={false} />
+                <ResourceCard
+                  key={resource.id}
+                  resource={resource}
+                  showRating={false}
+                />
               ))}
             </div>
           ) : (
@@ -401,11 +674,11 @@ export default function UserProfilePage() {
           )}
         </TabsPrimitive.Content>
 
-        {/* 评论 Tab */}
+        {/* ---- Comments tab ---- */}
         <TabsPrimitive.Content value="comments">
-          {userComments.length > 0 ? (
+          {comments.length > 0 ? (
             <div className="space-y-4">
-              {userComments.map((comment) => (
+              {comments.map((comment) => (
                 <Card key={comment.id}>
                   <CardContent className="py-4">
                     <div className="flex items-start gap-3">
@@ -414,7 +687,7 @@ export default function UserProfilePage() {
                           <img
                             src={comment.user.avatarUrl}
                             alt={comment.user.username}
-                            className="w-8 h-8 rounded-full"
+                            className="w-8 h-8 rounded-full object-cover"
                           />
                         ) : (
                           <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
@@ -436,7 +709,9 @@ export default function UserProfilePage() {
                             {timeAgo(comment.createdAt)}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground">{comment.content}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {comment.content}
+                        </p>
                         <Link
                           href={`/resource/${comment.resourceId}`}
                           className="text-xs text-primary hover:underline mt-2 inline-block"
@@ -458,21 +733,13 @@ export default function UserProfilePage() {
           )}
         </TabsPrimitive.Content>
 
-        {/* 收藏 Tab */}
+        {/* ---- Favorites tab (placeholder, needs dedicated endpoint) ---- */}
         <TabsPrimitive.Content value="favorites">
-          {favoritedResources.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {favoritedResources.map((resource) => (
-                <ResourceCard key={resource.id} resource={resource} />
-              ))}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                暂无收藏记录
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              暂无收藏记录
+            </CardContent>
+          </Card>
         </TabsPrimitive.Content>
       </TabsPrimitive.Root>
     </div>

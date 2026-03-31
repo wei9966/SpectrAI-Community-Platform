@@ -56,20 +56,17 @@ const postListQuery = z.object({
 
 // ── GET /api/forum/categories ───────────────────────────────
 forumRoutes.get("/categories", async (c) => {
-  const categories = await db
-    .select({
-      id: forumCategories.id,
-      name: forumCategories.name,
-      slug: forumCategories.slug,
-      description: forumCategories.description,
-      icon: forumCategories.icon,
-      sortOrder: forumCategories.sortOrder,
-      createdAt: forumCategories.createdAt,
-      postCount: sql<number>`(SELECT COUNT(*)::int FROM forum_posts WHERE category_id = ${forumCategories.id})`,
-      latestPostAt: sql<string | null>`(SELECT MAX(created_at) FROM forum_posts WHERE category_id = ${forumCategories.id})`,
-    })
-    .from(forumCategories)
-    .orderBy(asc(forumCategories.sortOrder));
+  const categories = await db.execute(sql`
+    SELECT
+      c.id, c.name, c.slug, c.description, c.icon,
+      c.sort_order as "sortOrder",
+      c.created_at as "createdAt",
+      (SELECT COUNT(*)::int FROM forum_posts WHERE category_id = c.id) as "postCount",
+      (SELECT COUNT(*)::int FROM forum_posts WHERE category_id = c.id AND created_at >= CURRENT_DATE) as "todayPostCount",
+      (SELECT MAX(created_at) FROM forum_posts WHERE category_id = c.id) as "latestPostAt"
+    FROM forum_categories c
+    ORDER BY c.sort_order ASC
+  `);
 
   return c.json({ success: true, data: categories });
 });
@@ -155,6 +152,66 @@ forumRoutes.get("/categories/:slug/posts", async (c) => {
 // ════════════════════════════════════════════════════════════
 // POSTS
 // ════════════════════════════════════════════════════════════
+
+// ── GET /api/forum/posts — list all posts across categories ──
+forumRoutes.get("/posts", async (c) => {
+  const query = postListQuery.parse(c.req.query());
+  const { page, limit, sort } = query;
+  const offset = (page - 1) * limit;
+
+  const orderBy =
+    sort === "hot"
+      ? desc(forumPosts.voteScore)
+      : desc(forumPosts.createdAt);
+
+  const condition =
+    sort === "unanswered" ? eq(forumPosts.replyCount, 0) : undefined;
+
+  const [items, [{ total }]] = await Promise.all([
+    db
+      .select({
+        id: forumPosts.id,
+        title: forumPosts.title,
+        categoryId: forumPosts.categoryId,
+        isPinned: forumPosts.isPinned,
+        isLocked: forumPosts.isLocked,
+        viewCount: forumPosts.viewCount,
+        replyCount: forumPosts.replyCount,
+        voteScore: forumPosts.voteScore,
+        tags: forumPosts.tags,
+        createdAt: forumPosts.createdAt,
+        author: {
+          id: users.id,
+          username: users.username,
+          avatarUrl: users.avatarUrl,
+        },
+        category: {
+          id: forumCategories.id,
+          name: forumCategories.name,
+          slug: forumCategories.slug,
+        },
+      })
+      .from(forumPosts)
+      .leftJoin(users, eq(forumPosts.userId, users.id))
+      .leftJoin(forumCategories, eq(forumPosts.categoryId, forumCategories.id))
+      .where(condition)
+      .orderBy(desc(forumPosts.isPinned), orderBy)
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ total: count() })
+      .from(forumPosts)
+      .where(condition),
+  ]);
+
+  return c.json({
+    success: true,
+    data: {
+      items,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    },
+  });
+});
 
 // ── POST /api/forum/posts ───────────────────────────────────
 forumRoutes.post(
