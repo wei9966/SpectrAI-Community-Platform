@@ -3,13 +3,73 @@ import { Hono } from 'hono';
 import { sign } from 'jsonwebtoken';
 import { hash } from 'bcryptjs';
 
-// Mock db methods
-const mockDb = {
-  select: vi.fn(),
-  insert: vi.fn(),
-  update: vi.fn(),
-  delete: vi.fn(),
+// Mock env
+const mockEnv = {
+  PORT: 3000,
+  NODE_ENV: 'test',
+  DATABASE_URL: 'postgres://test:test@localhost:5432/test',
+  JWT_SECRET: 'test-jwt-secret-key-for-testing',
+  GITHUB_CLIENT_ID: 'test-github-client-id',
+  GITHUB_CLIENT_SECRET: 'test-github-client-secret',
 };
+
+// Mock db helper - creates a chainable mock query builder that returns promises
+const createMockQueryBuilder = () => {
+  const mock: any = {};
+  mock.where = vi.fn(() => mock);
+  mock.limit = vi.fn(() => mock);
+  mock.offset = vi.fn(() => mock);
+  mock.orderBy = vi.fn(() => mock);
+  mock.innerJoin = vi.fn(() => mock);
+  mock.leftJoin = vi.fn(() => mock);
+  mock.returning = vi.fn(() => mock);
+  mock.values = vi.fn(() => mock);
+  mock.set = vi.fn(() => mock);
+  mock.from = vi.fn(() => mock);
+  mock.where.mockReturnThis();
+  mock.limit.mockReturnThis();
+  mock.offset.mockReturnThis();
+  mock.orderBy.mockReturnThis();
+  mock.innerJoin.mockReturnThis();
+  mock.leftJoin.mockReturnThis();
+  mock.values.mockReturnThis();
+  mock.set.mockReturnThis();
+  mock.from.mockReturnThis();
+  mock.returning.mockReturnThis();
+  // Make the mock object thenable so it can be awaited
+  mock._resolveValue = [];
+  mock.then = function(resolve: any) {
+    resolve(this._resolveValue);
+  };
+  return mock;
+};
+
+// Mock modules - vi.mock is hoisted, must define everything inside factory
+vi.mock('../config/env.js', () => ({
+  getEnv: () => mockEnv,
+}));
+
+vi.mock('../db/index.js', () => {
+  const mockDb: any = {
+    select: vi.fn(() => createMockQueryBuilder()),
+    insert: vi.fn(() => createMockQueryBuilder()),
+    update: vi.fn(() => createMockQueryBuilder()),
+    delete: vi.fn(() => createMockQueryBuilder()),
+  };
+  return {
+    db: mockDb,
+  };
+});
+
+vi.mock('../db/schema.js', () => ({
+  resources: {},
+  resourceFavorites: {},
+  users: {},
+}));
+
+// Import after mocking
+import favoriteRoutes, { userFavoriteRoutes } from '../routes/favorites.js';
+import { db } from '../db/index.js';
 
 // Mock data
 const mockUsers = [
@@ -81,34 +141,6 @@ const mockFavorites = [
   },
 ];
 
-// Mock env
-const mockEnv = {
-  PORT: 3000,
-  NODE_ENV: 'test',
-  DATABASE_URL: 'postgres://test:test@localhost:5432/test',
-  JWT_SECRET: 'test-jwt-secret-key-for-testing',
-  GITHUB_CLIENT_ID: 'test-github-client-id',
-  GITHUB_CLIENT_SECRET: 'test-github-client-secret',
-};
-
-// Mock modules
-vi.mock('../config/env.js', () => ({
-  getEnv: () => mockEnv,
-}));
-
-vi.mock('../db/index.js', () => ({
-  db: mockDb,
-}));
-
-vi.mock('../db/schema.js', () => ({
-  resources: {},
-  resourceFavorites: {},
-  users: {},
-}));
-
-// Import after mocking
-import favoriteRoutes, { userFavoriteRoutes } from '../routes/favorites.js';
-
 // Test factory functions
 function createMockFavorite(overrides?: Partial<typeof mockFavorites[0]>) {
   return { ...mockFavorites[0], ...overrides };
@@ -125,6 +157,9 @@ function generateTestToken(userId: string, role = 'user') {
     { expiresIn: '7d' }
   );
 }
+
+// Get mock db after mocking
+const mockDb = db as any;
 
 describe('favoriteRoutes', () => {
   let app: Hono;
@@ -170,9 +205,12 @@ describe('favoriteRoutes', () => {
 
     describe('resource existence', () => {
       it('should reject favorite for non-existent resource', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/resources/non-existent/favorite', {
           method: 'POST',
@@ -190,18 +228,25 @@ describe('favoriteRoutes', () => {
 
     describe('toggle favorite', () => {
       it('should create favorite (not favorited before)', async () => {
-        // Resource exists
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockResources[0]]),
-        });
-        // No existing favorite
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        // Insert
-        mockDb.insert.mockReturnValue({
-          values: () => Promise.resolve({}),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockResources[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = [];
+
+        const insertMock = createMockQueryBuilder();
+        (mockDb.insert as any).mockReturnValueOnce(insertMock);
+        insertMock.values.mockReturnValueOnce(insertMock);
+        insertMock.returning();
+        insertMock._resolveValue = [{}];
 
         const res = await app.request('/api/resources/resource-1/favorite', {
           method: 'POST',
@@ -217,18 +262,24 @@ describe('favoriteRoutes', () => {
       });
 
       it('should remove favorite (already favorited - toggle off)', async () => {
-        // Resource exists
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockResources[0]]),
-        });
-        // Existing favorite found
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([createMockFavorite()]),
-        });
-        // Delete
-        mockDb.delete.mockReturnValue({
-          where: () => Promise.resolve({}),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockResources[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = [createMockFavorite()];
+
+        const deleteMock = createMockQueryBuilder();
+        (mockDb.delete as any).mockReturnValueOnce(deleteMock);
+        deleteMock.where.mockReturnValueOnce(deleteMock);
+        deleteMock._resolveValue = {};
 
         const res = await app.request('/api/resources/resource-1/favorite', {
           method: 'POST',
@@ -245,13 +296,25 @@ describe('favoriteRoutes', () => {
 
       it('should toggle favorite on then off', async () => {
         // First request - add favorite
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockResources[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.insert.mockReturnValue({ values: () => Promise.resolve({}) });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockResources[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = [];
+
+        const insertMock = createMockQueryBuilder();
+        (mockDb.insert as any).mockReturnValueOnce(insertMock);
+        insertMock.values.mockReturnValueOnce(insertMock);
+        insertMock.returning();
+        insertMock._resolveValue = [{}];
 
         const res1 = await app.request('/api/resources/resource-1/favorite', {
           method: 'POST',
@@ -262,13 +325,25 @@ describe('favoriteRoutes', () => {
 
         // Second request - remove favorite
         vi.clearAllMocks();
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockResources[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([createMockFavorite()]),
-        });
-        mockDb.delete.mockReturnValue({ where: () => Promise.resolve({}) });
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [mockResources[0]];
+
+        const fourthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.from.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.where.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.limit();
+        fourthCallMock._resolveValue = [createMockFavorite()];
+
+        const deleteMock = createMockQueryBuilder();
+        (mockDb.delete as any).mockReturnValueOnce(deleteMock);
+        deleteMock.where.mockReturnValueOnce(deleteMock);
+        deleteMock._resolveValue = {};
 
         const res2 = await app.request('/api/resources/resource-1/favorite', {
           method: 'POST',
@@ -281,13 +356,25 @@ describe('favoriteRoutes', () => {
 
     describe('response format', () => {
       it('should return ApiResponse format', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockResources[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.insert.mockReturnValue({ values: () => Promise.resolve({}) });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockResources[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = [];
+
+        const insertMock = createMockQueryBuilder();
+        (mockDb.insert as any).mockReturnValueOnce(insertMock);
+        insertMock.values.mockReturnValueOnce(insertMock);
+        insertMock.returning();
+        insertMock._resolveValue = [{}];
 
         const res = await app.request('/api/resources/resource-1/favorite', {
           method: 'POST',
@@ -322,9 +409,12 @@ describe('userFavoriteRoutes', () => {
   describe('GET /api/users/:id/favorites', () => {
     describe('user existence', () => {
       it('should reject for non-existent user', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/non-existent/favorites');
 
@@ -335,17 +425,26 @@ describe('userFavoriteRoutes', () => {
       });
 
       it('should return empty favorites list for user with no favorites', async () => {
-        // User exists
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        // No favorites
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 0 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [{ total: 0 }];
 
         const res = await app.request('/api/users/user-1/favorites');
 
@@ -388,15 +487,26 @@ describe('userFavoriteRoutes', () => {
           },
         ];
 
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve(mockFavoriteResources),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 2 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = mockFavoriteResources;
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [{ total: 2 }];
 
         const res = await app.request('/api/users/user-1/favorites?page=1&limit=10');
 
@@ -413,15 +523,26 @@ describe('userFavoriteRoutes', () => {
       });
 
       it('should accept custom page and limit parameters', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 50 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [{ total: 50 }];
 
         const res = await app.request('/api/users/user-1/favorites?page=2&limit=25');
 
@@ -434,15 +555,26 @@ describe('userFavoriteRoutes', () => {
       });
 
       it('should cap limit to maximum 100', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 200 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [{ total: 200 }];
 
         const res = await app.request('/api/users/user-1/favorites?limit=500');
 
@@ -454,15 +586,26 @@ describe('userFavoriteRoutes', () => {
 
     describe('response format', () => {
       it('should return ApiResponse format with items and pagination', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 0 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [{ total: 0 }];
 
         const res = await app.request('/api/users/user-1/favorites');
 
@@ -491,15 +634,26 @@ describe('userFavoriteRoutes', () => {
           author: { id: 'user-2', username: 'author', avatarUrl: null },
         };
 
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockResource]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 1 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = [mockResource];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [{ total: 1 }];
 
         const res = await app.request('/api/users/user-1/favorites');
         const body = await res.json();

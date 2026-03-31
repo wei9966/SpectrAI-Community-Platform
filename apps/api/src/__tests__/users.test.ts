@@ -13,19 +13,53 @@ const mockEnv = {
   GITHUB_CLIENT_SECRET: 'test-github-client-secret',
 };
 
-// Mock modules - vi.mock is hoisted, so we cannot use external variables
+// Mock db helper - creates a chainable mock query builder that returns promises
+const createMockQueryBuilder = () => {
+  const mock: any = {};
+  mock.where = vi.fn(() => mock);
+  mock.limit = vi.fn(() => mock);
+  mock.offset = vi.fn(() => mock);
+  mock.orderBy = vi.fn(() => mock);
+  mock.innerJoin = vi.fn(() => mock);
+  mock.leftJoin = vi.fn(() => mock);
+  mock.returning = vi.fn(() => mock);
+  mock.values = vi.fn(() => mock);
+  mock.set = vi.fn(() => mock);
+  mock.from = vi.fn(() => mock);
+  mock.where.mockReturnThis();
+  mock.limit.mockReturnThis();
+  mock.offset.mockReturnThis();
+  mock.orderBy.mockReturnThis();
+  mock.innerJoin.mockReturnThis();
+  mock.leftJoin.mockReturnThis();
+  mock.values.mockReturnThis();
+  mock.set.mockReturnThis();
+  mock.from.mockReturnThis();
+  mock.returning.mockReturnThis();
+  // Make the mock object thenable so it can be awaited
+  mock._resolveValue = [];
+  mock.then = function(resolve: any) {
+    resolve(this._resolveValue);
+  };
+  return mock;
+};
+
+// Mock modules - vi.mock is hoisted, must define everything inside factory
 vi.mock('../config/env.js', () => ({
   getEnv: () => mockEnv,
 }));
 
-vi.mock('../db/index.js', () => ({
-  db: {
-    select: vi.fn(),
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
-}));
+vi.mock('../db/index.js', () => {
+  const mockDb: any = {
+    select: vi.fn(() => createMockQueryBuilder()),
+    insert: vi.fn(() => createMockQueryBuilder()),
+    update: vi.fn(() => createMockQueryBuilder()),
+    delete: vi.fn(() => createMockQueryBuilder()),
+  };
+  return {
+    db: mockDb,
+  };
+});
 
 vi.mock('../db/schema.js', () => ({
   users: {},
@@ -191,9 +225,12 @@ describe('userRoutes', () => {
   describe('GET /api/users/:username', () => {
     describe('user existence', () => {
       it('should return 404 for non-existent user', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/nonexistent');
         const body = await res.json();
@@ -204,14 +241,19 @@ describe('userRoutes', () => {
       });
 
       it('should return user profile with resource count', async () => {
-        // User exists
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        // Resource count
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 5 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 5 }];
 
         const res = await app.request('/api/users/testuser');
         const body = await res.json();
@@ -227,12 +269,20 @@ describe('userRoutes', () => {
 
       it('should return null avatarUrl for user without avatar', async () => {
         const userWithoutAvatar = { ...mockUsers[1], avatarUrl: null };
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([userWithoutAvatar]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 0 }]),
-        });
+
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [userWithoutAvatar];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 0 }];
 
         const res = await app.request('/api/users/anotheruser');
         const body = await res.json();
@@ -247,9 +297,12 @@ describe('userRoutes', () => {
   describe('GET /api/users/:username/resources', () => {
     describe('user existence', () => {
       it('should return 404 for non-existent user', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/nonexistent/resources');
         const body = await res.json();
@@ -262,11 +315,6 @@ describe('userRoutes', () => {
 
     describe('pagination', () => {
       it('should return paginated resources list', async () => {
-        // User exists
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        // Resources
         const mockResourcesList = [
           {
             id: 'resource-1',
@@ -291,13 +339,27 @@ describe('userRoutes', () => {
             createdAt: new Date('2026-01-02T00:00:00.000Z'),
           },
         ];
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve(mockResourcesList),
-        });
-        // Total count
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 2 }]),
-        });
+
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = mockResourcesList;
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [{ total: 2 }];
 
         const res = await app.request('/api/users/testuser/resources?page=1&limit=10');
         const body = await res.json();
@@ -314,15 +376,26 @@ describe('userRoutes', () => {
       });
 
       it('should accept custom page and limit parameters', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 50 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 50 }];
 
         const res = await app.request('/api/users/testuser/resources?page=2&limit=25');
         const body = await res.json();
@@ -335,15 +408,26 @@ describe('userRoutes', () => {
       });
 
       it('should cap limit to maximum 100', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 200 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 200 }];
 
         const res = await app.request('/api/users/testuser/resources?limit=500');
         const body = await res.json();
@@ -355,15 +439,26 @@ describe('userRoutes', () => {
 
     describe('empty list', () => {
       it('should return empty resources list for user with no resources', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 0 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 0 }];
 
         const res = await app.request('/api/users/testuser/resources');
         const body = await res.json();
@@ -379,9 +474,12 @@ describe('userRoutes', () => {
   describe('GET /api/users/:id/stats', () => {
     describe('user existence', () => {
       it('should return 404 for non-existent user', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/non-existent/stats');
         const body = await res.json();
@@ -394,22 +492,33 @@ describe('userRoutes', () => {
 
     describe('stats calculation', () => {
       it('should return complete user stats', async () => {
-        // User exists
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        // Resource stats (downloads & likes)
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ totalDownloads: '300', totalLikes: '130' }]),
-        });
-        // Rating stats
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ averageRating: '4.5' }]),
-        });
-        // Resource count
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ resourceCount: 2 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [{ totalDownloads: 300, totalLikes: 130 }];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ averageRating: 4.5 }];
+
+        const fourthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.from.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.where.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.limit();
+        firstCallMock._resolveValue = [{ resourceCount: 2 }];
 
         const res = await app.request('/api/users/user-1/stats');
         const body = await res.json();
@@ -426,18 +535,33 @@ describe('userRoutes', () => {
       });
 
       it('should return zero values when no stats exist', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ totalDownloads: null, totalLikes: null }]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ averageRating: null }]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ resourceCount: 0 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [{ totalDownloads: null, totalLikes: null }];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ averageRating: null }];
+
+        const fourthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.from.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.where.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.limit();
+        firstCallMock._resolveValue = [{ resourceCount: 0 }];
 
         const res = await app.request('/api/users/user-1/stats');
         const body = await res.json();
@@ -454,9 +578,12 @@ describe('userRoutes', () => {
   describe('GET /api/users/:id/activity', () => {
     describe('user existence', () => {
       it('should return 404 for non-existent user', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/non-existent/activity');
         const body = await res.json();
@@ -469,11 +596,6 @@ describe('userRoutes', () => {
 
     describe('activity feed', () => {
       it('should return merged and sorted activities', async () => {
-        // User exists
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-
         const recentResources = [
           { id: 'resource-1', title: 'My Resource', createdAt: new Date('2026-01-01T00:00:00.000Z') },
         ];
@@ -487,12 +609,40 @@ describe('userRoutes', () => {
           { id: 'favorite-1', resourceId: 'resource-4', title: 'Favorited Resource', createdAt: new Date('2026-01-04T00:00:00.000Z') },
         ];
 
-        // Mock Promise.all results
-        mockDb.select
-          .mockReturnValueOnce({ where: () => Promise.resolve(recentResources) })
-          .mockReturnValueOnce({ where: () => Promise.resolve(recentComments) })
-          .mockReturnValueOnce({ where: () => Promise.resolve(recentLikes) })
-          .mockReturnValueOnce({ where: () => Promise.resolve(recentFavorites) });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = recentResources;
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = recentComments;
+
+        const fourthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.from.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.where.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.limit();
+        fourthCallMock._resolveValue = recentLikes;
+
+        const fifthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.from.mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.where.mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.limit();
+        fifthCallMock._resolveValue = recentFavorites;
 
         const res = await app.request('/api/users/user-1/activity');
         const body = await res.json();
@@ -500,7 +650,6 @@ describe('userRoutes', () => {
         expect(res.status).toBe(200);
         expect(body.success).toBe(true);
         expect(body.data).toHaveLength(4);
-        // Should be sorted by createdAt descending
         expect(body.data[0].type).toBe('favorite');
         expect(body.data[1].type).toBe('like');
         expect(body.data[2].type).toBe('comment');
@@ -508,18 +657,44 @@ describe('userRoutes', () => {
       });
 
       it('should include all activity types', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-
         const recentResources = [
           { id: 'resource-1', title: 'Resource', createdAt: new Date('2026-01-01T00:00:00.000Z') },
         ];
-        mockDb.select
-          .mockReturnValueOnce({ where: () => Promise.resolve(recentResources) })
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) })
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) })
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) });
+
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        recentResources._resolveValue = recentResources;
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const fourthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.from.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.where.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const fifthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.from.mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.where.mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/user-1/activity?limit=10');
         const body = await res.json();
@@ -535,21 +710,46 @@ describe('userRoutes', () => {
       });
 
       it('should respect limit parameter', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-
         const manyActivities = Array(30).fill(null).map((_, i) => ({
           id: `resource-${i}`,
           title: `Resource ${i}`,
           createdAt: new Date(`2026-01-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`),
         }));
 
-        mockDb.select
-          .mockReturnValueOnce({ where: () => Promise.resolve(manyActivities) })
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) })
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) })
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = manyActivities;
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [];
+
+        const fourthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.from.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.where.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const fifthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.from.mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.where.mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/user-1/activity?limit=20');
         const body = await res.json();
@@ -559,17 +759,42 @@ describe('userRoutes', () => {
       });
 
       it('should cap activity limit to maximum 50', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) })
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) })
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) })
-          .mockReturnValueOnce({ where: () => Promise.resolve([]) });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const fourthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.from.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.where.mockReturnValueOnce(fourthCallMock);
+        fourthCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const fifthCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.from.mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.where.mockReturnValueOnce(fifthCallMock);
+        fifthCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/user-1/activity?limit=100');
-        await res.json();
 
         expect(res.status).toBe(200);
       });
@@ -579,9 +804,12 @@ describe('userRoutes', () => {
   describe('GET /api/users/:id/likes', () => {
     describe('user existence', () => {
       it('should return 404 for non-existent user', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/non-existent/likes');
         const body = await res.json();
@@ -594,11 +822,6 @@ describe('userRoutes', () => {
 
     describe('pagination', () => {
       it('should return paginated likes list', async () => {
-        // User exists
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        // Likes with resource and author info
         const mockLikesList = [
           {
             id: 'like-1',
@@ -627,13 +850,27 @@ describe('userRoutes', () => {
             author: { id: 'user-3', username: 'author2', avatarUrl: null },
           },
         ];
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve(mockLikesList),
-        });
-        // Total count
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 2 }]),
-        });
+
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = mockLikesList;
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [{ total: 2 }];
 
         const res = await app.request('/api/users/user-1/likes?page=1&limit=10');
         const body = await res.json();
@@ -650,15 +887,26 @@ describe('userRoutes', () => {
       });
 
       it('should accept custom page and limit parameters', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 50 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 50 }];
 
         const res = await app.request('/api/users/user-1/likes?page=2&limit=25');
         const body = await res.json();
@@ -671,15 +919,26 @@ describe('userRoutes', () => {
       });
 
       it('should cap limit to maximum 100', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 200 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 200 }];
 
         const res = await app.request('/api/users/user-1/likes?limit=500');
         const body = await res.json();
@@ -691,15 +950,26 @@ describe('userRoutes', () => {
 
     describe('empty list', () => {
       it('should return empty likes list for user with no likes', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 0 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 0 }];
 
         const res = await app.request('/api/users/user-1/likes');
         const body = await res.json();
@@ -713,9 +983,6 @@ describe('userRoutes', () => {
 
     describe('response format', () => {
       it('should include author info in liked resources', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
         const mockLike = {
           id: 'like-1',
           resourceId: 'resource-1',
@@ -729,12 +996,27 @@ describe('userRoutes', () => {
           likedAt: new Date('2026-01-01T00:00:00.000Z'),
           author: { id: 'user-2', username: 'author', avatarUrl: null },
         };
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockLike]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 1 }]),
-        });
+
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [mockLike];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 1 }];
 
         const res = await app.request('/api/users/user-1/likes');
         const body = await res.json();
@@ -749,9 +1031,12 @@ describe('userRoutes', () => {
   describe('GET /api/users/:id/comments', () => {
     describe('user existence', () => {
       it('should return 404 for non-existent user', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [];
 
         const res = await app.request('/api/users/non-existent/comments');
         const body = await res.json();
@@ -764,11 +1049,6 @@ describe('userRoutes', () => {
 
     describe('pagination', () => {
       it('should return paginated comments list', async () => {
-        // User exists
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        // Comments with resource info
         const mockCommentsList = [
           {
             id: 'comment-1',
@@ -783,13 +1063,27 @@ describe('userRoutes', () => {
             resource: { id: 'resource-2', name: 'Resource 2', type: 'skill' as const },
           },
         ];
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve(mockCommentsList),
-        });
-        // Total count
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 2 }]),
-        });
+
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        secondCallMock._resolveValue = mockCommentsList;
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        thirdCallMock._resolveValue = [{ total: 2 }];
 
         const res = await app.request('/api/users/user-1/comments?page=1&limit=10');
         const body = await res.json();
@@ -806,15 +1100,26 @@ describe('userRoutes', () => {
       });
 
       it('should accept custom page and limit parameters', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 50 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 50 }];
 
         const res = await app.request('/api/users/user-1/comments?page=2&limit=25');
         const body = await res.json();
@@ -827,15 +1132,26 @@ describe('userRoutes', () => {
       });
 
       it('should cap limit to maximum 100', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 200 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 200 }];
 
         const res = await app.request('/api/users/user-1/comments?limit=500');
         const body = await res.json();
@@ -847,15 +1163,26 @@ describe('userRoutes', () => {
 
     describe('empty list', () => {
       it('should return empty comments list for user with no comments', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 0 }]),
-        });
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 0 }];
 
         const res = await app.request('/api/users/user-1/comments');
         const body = await res.json();
@@ -869,21 +1196,33 @@ describe('userRoutes', () => {
 
     describe('response format', () => {
       it('should include resource info in comments', async () => {
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockUsers[0]]),
-        });
         const mockComment = {
           id: 'comment-1',
           content: 'Test comment',
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
           resource: { id: 'resource-1', name: 'Test Resource', type: 'workflow' as const },
         };
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([mockComment]),
-        });
-        mockDb.select.mockReturnValueOnce({
-          where: () => Promise.resolve([{ total: 1 }]),
-        });
+
+        const firstCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(firstCallMock);
+        firstCallMock.from.mockReturnValueOnce(firstCallMock);
+        firstCallMock.where.mockReturnValueOnce(firstCallMock);
+        firstCallMock.limit();
+        firstCallMock._resolveValue = [mockUsers[0]];
+
+        const secondCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(secondCallMock);
+        secondCallMock.from.mockReturnValueOnce(secondCallMock);
+        secondCallMock.where.mockReturnValueOnce(secondCallMock);
+        secondCallMock.limit();
+        firstCallMock._resolveValue = [mockComment];
+
+        const thirdCallMock = createMockQueryBuilder();
+        (mockDb.select as any).mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.from.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.where.mockReturnValueOnce(thirdCallMock);
+        thirdCallMock.limit();
+        firstCallMock._resolveValue = [{ total: 1 }];
 
         const res = await app.request('/api/users/user-1/comments');
         const body = await res.json();

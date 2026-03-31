@@ -19,64 +19,34 @@ export {
   publicResourceSchema,
 } from './resource.schema';
 
-// Phase 2 - Social features
+// Rating schemas
 export {
-  resourceRatingSchema,
-  createRatingInputSchema,
-  updateRatingInputSchema,
-  resourceRatingStatsSchema,
-} from './rating';
-export {
-  resourceFavoriteSchema,
-  createFavoriteInputSchema,
-  toggleFavoriteResponseSchema,
-} from './favorite';
-export {
-  projectSchema,
-  projectStatusSchema,
-  toolChainItemSchema,
-  createProjectInputSchema,
-  updateProjectInputSchema,
-  projectWithRelationsSchema,
-} from './project';
+  createRatingSchema,
+} from './rating.schema';
 
-// Phase 3 - Forum system
+// Favorite schemas
 export {
-  forumCategorySchema,
-  forumPostSchema,
-  forumReplySchema,
-  forumVoteSchema,
-  createCategoryInputSchema,
-  updateCategoryInputSchema,
-  createPostInputSchema,
-  updatePostInputSchema,
-  createReplyInputSchema,
-  updateReplyInputSchema,
-  createVoteInputSchema,
-  forumPostWithRelationsSchema,
-  paginatedResponseSchema,
-} from './forum';
+  toggleFavoriteSchema,
+} from './favorite.schema';
 
-// Ranking system
+// Project schemas
 export {
-  rankingPeriodSchema,
-  resourceSortSchema,
-  userSortSchema,
-  resourceRankingQuerySchema,
-  userRankingQuerySchema,
-  projectRankingQuerySchema,
-  rankedResourceSchema,
-  rankedUserSchema,
-  rankedProjectSchema,
-} from './ranking';
+  createProjectSchema,
+  updateProjectSchema,
+  addProjectResourceSchema,
+} from './project.schema';
 
-// Notification system
+// Forum schemas
 export {
-  notificationSchema,
-  notificationTypeSchema,
-  createNotificationInputSchema,
-  updateNotificationInputSchema,
-  notificationWithSenderSchema,
-  notificationCountsSchema,
-  markAllReadResponseSchema,
-} from './notification';
+  createPostSchema,
+  updatePostSchema,
+  createReplySchema,
+  voteSchema,
+} from './forum.schema';
+
+// Notification schemas
+export {
+  getNotificationsSchema,
+  markNotificationReadSchema,
+  markAllNotificationsReadSchema,
+} from './notification.schema';
