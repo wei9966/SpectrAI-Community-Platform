@@ -270,12 +270,13 @@ export default function UserProfilePage() {
 
         // Step 2 -- parallel fetches that need the user id
         const userId = profile.id;
+        const realUsername = profile.username;
 
         const results = await Promise.allSettled([
             apiFetch<UserStats>(`/api/users/${userId}/stats`),
             apiFetch<ActivityItem[]>(`/api/users/${userId}/activity`),
             apiFetch<PaginatedResources>(
-              `/api/users/${encodeURIComponent(username)}/resources?page=1&limit=${itemsPerPage}`
+              `/api/users/${encodeURIComponent(realUsername)}/resources?page=1&limit=${itemsPerPage}`
             ),
             apiFetch<PublicResource[]>(`/api/users/${userId}/likes`),
             apiFetch<PublicComment[]>(`/api/users/${userId}/comments`),
@@ -323,7 +324,7 @@ export default function UserProfilePage() {
     async function fetchPage() {
       try {
         const data = await apiFetch<PaginatedResources>(
-          `/api/users/${encodeURIComponent(username)}/resources?page=${currentPage}&limit=${itemsPerPage}`
+          `/api/users/${encodeURIComponent(user.username)}/resources?page=${currentPage}&limit=${itemsPerPage}`
         );
         if (!cancelled) {
           const author = { id: user.id, username: user.username, avatarUrl: user.avatarUrl };

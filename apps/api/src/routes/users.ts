@@ -9,8 +9,42 @@ import {
   resourceRatings,
   resourceFavorites,
 } from "../db/schema.js";
+import { authMiddleware } from "../middleware/auth.js";
 
 const userRoutes = new Hono();
+
+// ── GET /api/users/me — current authenticated user ──────────
+userRoutes.get("/me", authMiddleware, async (c) => {
+  const { userId } = c.get("user");
+
+  const [user] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      avatarUrl: users.avatarUrl,
+      bio: users.bio,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user) {
+    return c.json({ success: false, error: "User not found" }, 404);
+  }
+
+  const [{ total }] = await db
+    .select({ total: count() })
+    .from(resources)
+    .where(
+      and(eq(resources.authorId, user.id), eq(resources.isPublished, true))
+    );
+
+  return c.json({
+    success: true,
+    data: { ...user, resourceCount: total },
+  });
+});
 
 // ── GET /api/users/:username ────────────────────────────────
 userRoutes.get("/:username", async (c) => {
