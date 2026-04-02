@@ -234,43 +234,6 @@ resourceRoutes.get("/:id", optionalAuthMiddleware, async (c) => {
   return c.json({ success: true, data: resource });
 });
 
-// ── GET /api/resources/:id/install-manifest ─────────────────
-resourceRoutes.get("/:id/install-manifest", async (c) => {
-  const id = c.req.param("id")!;
-
-  const [resource] = await db
-    .select({
-      id: resources.id,
-      name: resources.name,
-      type: resources.type,
-      version: resources.version,
-      content: resources.content,
-      isPublished: resources.isPublished,
-    })
-    .from(resources)
-    .where(eq(resources.id, id))
-    .limit(1);
-
-  if (!resource) {
-    return c.json({ success: false, error: "Resource not found" }, 404);
-  }
-
-  if (!resource.isPublished) {
-    return c.json({ success: false, error: "Resource is not published" }, 403);
-  }
-
-  return c.json({
-    success: true,
-    data: {
-      type: resource.type,
-      name: resource.name,
-      version: resource.version,
-      installUrl: `spectrai://install/${resource.type}/${resource.id}`,
-      content: resource.content,
-    },
-  });
-});
-
 // ── POST /api/resources ─────────────────────────────────────
 resourceRoutes.post(
   "/",

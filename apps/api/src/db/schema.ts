@@ -22,12 +22,6 @@ export const resourceTypeEnum = pgEnum("resource_type", [
 
 export const userRoleEnum = pgEnum("user_role", ["user", "admin", "moderator"]);
 
-export const postStatusEnum = pgEnum("post_status", [
-  "pending",
-  "approved",
-  "rejected",
-]);
-
 // ============================================================
 // Users
 // ============================================================
@@ -250,12 +244,6 @@ export const forumPosts = pgTable("forum_posts", {
   voteScore: integer("vote_score").default(0).notNull(),
   bestAnswerId: uuid("best_answer_id"),
   tags: text("tags").array(),
-  status: postStatusEnum("status").default("pending").notNull(),
-  reviewedBy: uuid("reviewed_by").references(() => users.id, {
-    onDelete: "set null",
-  }),
-  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
-  rejectReason: text("reject_reason"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -459,11 +447,6 @@ export const forumPostsRelations = relations(
     user: one(users, {
       fields: [forumPosts.userId],
       references: [users.id],
-    }),
-    reviewer: one(users, {
-      fields: [forumPosts.reviewedBy],
-      references: [users.id],
-      relationName: "postReviewer",
     }),
     bestAnswer: one(forumReplies, {
       fields: [forumPosts.bestAnswerId],

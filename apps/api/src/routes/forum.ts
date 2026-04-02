@@ -44,16 +44,10 @@ const voteSchema = z.object({
   value: z.union([z.literal(1), z.literal(-1)]),
 });
 
-const reviewPostSchema = z.object({
-  action: z.enum(["approve", "reject"]),
-  reason: z.string().optional(),
-});
-
 const postListQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   sort: z.enum(["newest", "hot", "unanswered"]).default("newest"),
-  status: z.enum(["pending", "approved", "rejected"]).optional(),
 });
 
 // ════════════════════════════════════════════════════════════
@@ -62,20 +56,17 @@ const postListQuery = z.object({
 
 // ── GET /api/forum/categories ───────────────────────────────
 forumRoutes.get("/categories", async (c) => {
-  const categories = await db
-    .select({
-      id: forumCategories.id,
-      name: forumCategories.name,
-      slug: forumCategories.slug,
-      description: forumCategories.description,
-      icon: forumCategories.icon,
-      sortOrder: forumCategories.sortOrder,
-      createdAt: forumCategories.createdAt,
-      postCount: sql<number>`(SELECT COUNT(*)::int FROM forum_posts WHERE category_id = ${forumCategories.id} AND status = 'approved')`,
-      latestPostAt: sql<string | null>`(SELECT MAX(created_at) FROM forum_posts WHERE category_id = ${forumCategories.id} AND status = 'approved')`,
-    })
-    .from(forumCategories)
-    .orderBy(asc(forumCategories.sortOrder));
+  const categories = await db.execute(sql`
+    SELECT
+      c.id, c.name, c.slug, c.description, c.icon,
+      c.sort_order as "sortOrder",
+      c.created_at as "createdAt",
+      (SELECT COUNT(*)::int FROM forum_posts WHERE category_id = c.id) as "postCount",
+      (SELECT COUNT(*)::int FROM forum_posts WHERE category_id = c.id AND created_at >= CURRENT_DATE) as "todayPostCount",
+      (SELECT MAX(created_at) FROM forum_posts WHERE category_id = c.id) as "latestPostAt"
+    FROM forum_categories c
+    ORDER BY c.sort_order ASC
+  `);
 
   return c.json({ success: true, data: categories });
 });
@@ -105,15 +96,13 @@ forumRoutes.get("/categories/:slug/posts", async (c) => {
         ? desc(forumPosts.createdAt)
         : desc(forumPosts.createdAt);
 
-  const baseCondition = and(
-    eq(forumPosts.categoryId, category.id),
-    eq(forumPosts.status, "approved")
-  );
-
   const unansweredCondition =
     sort === "unanswered"
-      ? and(baseCondition, eq(forumPosts.replyCount, 0))
-      : baseCondition;
+      ? and(
+          eq(forumPosts.categoryId, category.id),
+          eq(forumPosts.replyCount, 0)
+        )
+      : eq(forumPosts.categoryId, category.id);
 
   const [items, [{ total }]] = await Promise.all([
     db
@@ -165,28 +154,18 @@ forumRoutes.get("/categories/:slug/posts", async (c) => {
 // ════════════════════════════════════════════════════════════
 
 // ── GET /api/forum/posts — list all posts across categories ──
-forumRoutes.get("/posts", optionalAuthMiddleware, async (c) => {
+forumRoutes.get("/posts", async (c) => {
   const query = postListQuery.parse(c.req.query());
-  const { page, limit, sort, status } = query;
+  const { page, limit, sort } = query;
   const offset = (page - 1) * limit;
-
-  const userRole = c.get("user")?.role;
-  const isPrivileged = userRole === "admin" || userRole === "moderator";
 
   const orderBy =
     sort === "hot"
       ? desc(forumPosts.voteScore)
       : desc(forumPosts.createdAt);
 
-  // Admin/moderator can filter by status; others only see approved
-  const statusFilter = isPrivileged && status
-    ? eq(forumPosts.status, status)
-    : eq(forumPosts.status, "approved");
-
   const condition =
-    sort === "unanswered"
-      ? and(statusFilter, eq(forumPosts.replyCount, 0))
-      : statusFilter;
+    sort === "unanswered" ? eq(forumPosts.replyCount, 0) : undefined;
 
   const [items, [{ total }]] = await Promise.all([
     db
@@ -199,7 +178,6 @@ forumRoutes.get("/posts", optionalAuthMiddleware, async (c) => {
         viewCount: forumPosts.viewCount,
         replyCount: forumPosts.replyCount,
         voteScore: forumPosts.voteScore,
-        status: forumPosts.status,
         tags: forumPosts.tags,
         createdAt: forumPosts.createdAt,
         author: {
@@ -235,74 +213,13 @@ forumRoutes.get("/posts", optionalAuthMiddleware, async (c) => {
   });
 });
 
-
-// ── GET /api/forum/posts/pending — pending posts for admin/moderator ──
-forumRoutes.get("/posts/pending", authMiddleware, async (c) => {
-  const { role } = c.get("user");
-  if (role !== "admin" && role !== "moderator") {
-    return c.json({ success: false, error: "Not authorized" }, 403);
-  }
-
-  const query = postListQuery.parse(c.req.query());
-  const { page, limit } = query;
-  const offset = (page - 1) * limit;
-
-  const condition = eq(forumPosts.status, "pending");
-
-  const [items, [{ total }]] = await Promise.all([
-    db
-      .select({
-        id: forumPosts.id,
-        title: forumPosts.title,
-        content: forumPosts.content,
-        categoryId: forumPosts.categoryId,
-        isPinned: forumPosts.isPinned,
-        viewCount: forumPosts.viewCount,
-        replyCount: forumPosts.replyCount,
-        tags: forumPosts.tags,
-        status: forumPosts.status,
-        createdAt: forumPosts.createdAt,
-        author: {
-          id: users.id,
-          username: users.username,
-          avatarUrl: users.avatarUrl,
-        },
-        category: {
-          id: forumCategories.id,
-          name: forumCategories.name,
-          slug: forumCategories.slug,
-        },
-      })
-      .from(forumPosts)
-      .leftJoin(users, eq(forumPosts.userId, users.id))
-      .leftJoin(forumCategories, eq(forumPosts.categoryId, forumCategories.id))
-      .where(condition)
-      .orderBy(desc(forumPosts.createdAt))
-      .limit(limit)
-      .offset(offset),
-    db
-      .select({ total: count() })
-      .from(forumPosts)
-      .where(condition),
-  ]);
-
-  return c.json({
-    success: true,
-    data: {
-      items,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    },
-  });
-});
-
-
 // ── POST /api/forum/posts ───────────────────────────────────
 forumRoutes.post(
   "/posts",
   authMiddleware,
   zValidator("json", createPostSchema),
   async (c) => {
-    const { userId, role } = c.get("user");
+    const { userId } = c.get("user");
     const body = c.req.valid("json");
 
     // Verify category exists
@@ -316,9 +233,6 @@ forumRoutes.post(
       return c.json({ success: false, error: "Category not found" }, 404);
     }
 
-    // Admin/moderator posts are auto-approved; others are pending
-    const autoApproved = role === "admin" || role === "moderator";
-
     const [post] = await db
       .insert(forumPosts)
       .values({
@@ -327,9 +241,6 @@ forumRoutes.post(
         categoryId: body.categoryId,
         userId,
         tags: body.tags,
-        status: autoApproved ? "approved" : "pending",
-        reviewedBy: autoApproved ? userId : null,
-        reviewedAt: autoApproved ? new Date() : null,
       })
       .returning();
 
@@ -356,8 +267,6 @@ forumRoutes.get("/posts/:id", optionalAuthMiddleware, async (c) => {
       voteScore: forumPosts.voteScore,
       bestAnswerId: forumPosts.bestAnswerId,
       tags: forumPosts.tags,
-      status: forumPosts.status,
-      rejectReason: forumPosts.rejectReason,
       createdAt: forumPosts.createdAt,
       updatedAt: forumPosts.updatedAt,
       author: {
@@ -456,76 +365,6 @@ forumRoutes.get("/posts/:id", optionalAuthMiddleware, async (c) => {
     },
   });
 });
-
-// ── PATCH /api/forum/posts/:id/review — approve or reject ───
-forumRoutes.patch(
-  "/posts/:id/review",
-  authMiddleware,
-  zValidator("json", reviewPostSchema),
-  async (c) => {
-    const id = c.req.param("id")!;
-    const { userId, role } = c.get("user");
-    const { action, reason } = c.req.valid("json");
-
-    if (role !== "admin" && role !== "moderator") {
-      return c.json({ success: false, error: "Not authorized" }, 403);
-    }
-
-    const [existing] = await db
-      .select({
-        id: forumPosts.id,
-        status: forumPosts.status,
-        userId: forumPosts.userId,
-        title: forumPosts.title,
-      })
-      .from(forumPosts)
-      .where(eq(forumPosts.id, id))
-      .limit(1);
-
-    if (!existing) {
-      return c.json({ success: false, error: "Post not found" }, 404);
-    }
-
-    if (existing.status !== "pending") {
-      return c.json(
-        { success: false, error: "Post has already been reviewed" },
-        400
-      );
-    }
-
-    const newStatus = action === "approve" ? "approved" : "rejected";
-
-    const [updated] = await db
-      .update(forumPosts)
-      .set({
-        status: newStatus,
-        reviewedBy: userId,
-        reviewedAt: new Date(),
-        rejectReason: action === "reject" ? (reason || null) : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(forumPosts.id, id))
-      .returning();
-
-    // Notify post author about the review result
-    const notifyTitle =
-      action === "approve"
-        ? `你的帖子「${existing.title}」已通过审核`
-        : `你的帖子「${existing.title}」未通过审核${reason ? `：${reason}` : ""}`;
-
-    createNotification({
-      type: "post_review",
-      fromUserId: userId,
-      toUserId: existing.userId,
-      title: notifyTitle,
-      content: reason || undefined,
-      relatedId: id,
-      relatedType: "forum_post",
-    });
-
-    return c.json({ success: true, data: updated });
-  }
-);
 
 // ── PUT /api/forum/posts/:id ────────────────────────────────
 forumRoutes.put(

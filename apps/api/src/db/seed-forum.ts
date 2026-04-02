@@ -179,17 +179,9 @@ async function seedForum() {
     },
   ];
 
-  // Mark all seed posts as approved (they come from admin)
-  const postsWithStatus = postsData.map((p) => ({
-    ...p,
-    status: "approved" as const,
-    reviewedBy: author.id,
-    reviewedAt: new Date(),
-  }));
-
   const insertedPosts = await db
     .insert(forumPosts)
-    .values(postsWithStatus)
+    .values(postsData)
     .returning();
 
   // ── Replies ───────────────────────────────────────────────

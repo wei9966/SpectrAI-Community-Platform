@@ -2,23 +2,34 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Trophy, TrendingUp, Flame, Clock, Medal, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trophy, TrendingUp, Flame, Clock, Medal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { StarRating } from '@/components/star-rating';
 import { cn } from '@/lib/utils';
-import type { PublicResource } from '@spectrai-community/shared';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 // 排行榜条目类型
 interface RankingItem {
   rank: number;
-  previousRank?: number;
-  resource: PublicResource & {
-    averageRating: number;
-    ratingCount: number;
-    score: number; // 综合评分
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  tags: string[];
+  downloads: number;
+  likes: number;
+  averageRating: number;
+  ratingCount: number;
+  favoriteCount: number;
+  score: number;
+  author: {
+    id: string;
+    username: string;
+    avatarUrl: string | null;
   };
+  createdAt: string;
 }
 
 type TimeRange = 'week' | 'month' | 'all';
@@ -27,70 +38,57 @@ type SortBy = 'score' | 'downloads' | 'rating';
 export default function RankingsPage() {
   const [timeRange, setTimeRange] = React.useState<TimeRange>('week');
   const [sortBy, setSortBy] = React.useState<SortBy>('score');
+  const [rankings, setRankings] = React.useState<RankingItem[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  // Mock 排行榜数据
-  const rankings: RankingItem[] = React.useMemo(() => {
-    const items: RankingItem[] = mockResources.map((resource, index) => {
-      const rating = 3.5 + Math.random() * 1.5;
-      return {
-        rank: index + 1,
-        previousRank: index + Math.floor(Math.random() * 5) - 2,
-        resource: {
-          ...resource,
-          averageRating: rating,
-          ratingCount: Math.floor(Math.random() * 500) + 50,
-          score: rating * 100 + resource.downloads * 0.1 + resource.likes * 0.5,
-        } as any,
-      };
-    });
+  // 从 API 获取排行榜数据
+  React.useEffect(() => {
+    let cancelled = false;
 
-    // 按 score 排序
-    items.sort((a, b) => b.resource.score - a.resource.score);
+    async function fetchRankings() {
+      setIsLoading(true);
+      try {
+        const apiSort = sortBy === 'score' ? 'rating' : sortBy === 'downloads' ? 'downloads' : 'favorites';
+        const res = await fetch(
+          `${API_BASE}/api/rankings/resources?period=${timeRange}&sort=${apiSort}&limit=20`
+        );
+        if (!res.ok) throw new Error('Failed to fetch rankings');
 
-    // 重新分配排名
-    return items.map((item, index) => ({
-      ...item,
-      rank: index + 1,
-    }));
-  }, []);
+        const json = await res.json();
+        if (cancelled) return;
 
-  const filteredRankings = React.useMemo(() => {
-    let filtered = [...rankings];
-    if (sortBy === 'score') {
-      filtered.sort((a, b) => b.resource.score - a.resource.score);
-    } else if (sortBy === 'downloads') {
-      filtered.sort((a, b) => b.resource.downloads - a.resource.downloads);
-    } else if (sortBy === 'rating') {
-      filtered.sort((a, b) => b.resource.averageRating - a.resource.averageRating);
+        const data = json.data || json;
+        const items: RankingItem[] = (data.items || []).map((item: any, index: number) => ({
+          ...item,
+          rank: index + 1,
+        }));
+
+        // 客户端按选中维度重新排序
+        if (sortBy === 'downloads') {
+          items.sort((a, b) => b.downloads - a.downloads);
+        } else if (sortBy === 'rating') {
+          items.sort((a, b) => b.averageRating - a.averageRating);
+        }
+        items.forEach((item, i) => { item.rank = i + 1; });
+
+        setRankings(items);
+      } catch (err) {
+        console.error('Failed to load rankings:', err);
+        if (!cancelled) setRankings([]);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     }
-    return filtered;
-  }, [rankings, sortBy]);
+
+    fetchRankings();
+    return () => { cancelled = true; };
+  }, [timeRange, sortBy]);
 
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Trophy className="w-5 h-5 text-yellow-500" />;
     if (rank === 2) return <Medal className="w-5 h-5 text-gray-400" />;
     if (rank === 3) return <Medal className="w-5 h-5 text-amber-600" />;
     return <span className="text-lg font-bold text-muted-foreground">{rank}</span>;
-  };
-
-  const getRankChange = (item: RankingItem) => {
-    if (item.previousRank === undefined) return null;
-    const diff = item.previousRank - item.rank;
-    if (diff === 0) return null;
-    if (diff > 0) {
-      return (
-        <span className="flex items-center gap-0.5 text-green-500 text-xs">
-          <ArrowUp className="w-3 h-3" />
-          {diff}
-        </span>
-      );
-    }
-    return (
-      <span className="flex items-center gap-0.5 text-red-500 text-xs">
-        <ArrowDown className="w-3 h-3" />
-        {Math.abs(diff)}
-      </span>
-    );
   };
 
   return (
@@ -167,208 +165,101 @@ export default function RankingsPage() {
       </div>
 
       {/* 排行榜列表 */}
-      <div className="space-y-3">
-        {filteredRankings.map((item) => (
-          <Card
-            key={item.resource.id}
-            className={cn(
-              'hover:bg-secondary/30 transition-colors',
-              item.rank <= 3 && 'border-primary/30 bg-primary/5'
-            )}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center gap-4">
-                {/* 排名 */}
-                <div className="flex flex-col items-center min-w-[60px]">
-                  {getRankIcon(item.rank)}
-                  {getRankChange(item)}
-                </div>
-
-                {/* 资源信息 */}
-                <Link
-                  href={`/resource/${item.resource.id}`}
-                  className="flex-1 min-w-0 group"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <h3 className="font-semibold text-lg group-hover:text-primary transition-colors line-clamp-1">
-                        {item.resource.name}
-                      </h3>
-                      <div className="flex items-center gap-3 mt-1">
-                        <Link
-                          href={`/user/${item.resource.author.username}`}
-                          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {item.resource.author.avatarUrl && (
-                            <img
-                              src={item.resource.author.avatarUrl}
-                              alt={item.resource.author.username}
-                              className="w-4 h-4 rounded-full"
-                            />
-                          )}
-                          {item.resource.author.username}
-                        </Link>
-                        <StarRating
-                          value={item.resource.averageRating}
-                          count={item.resource.ratingCount}
-                          size="sm"
-                          readOnly
-                          showCount
-                        />
-                      </div>
-                    </div>
-
-                    {/* 统计数据 */}
-                    <div className="flex items-center gap-6 text-sm">
-                      <div className="text-center">
-                        <div className="text-muted-foreground">下载</div>
-                        <div className="font-semibold">
-                          {item.resource.downloads >= 1000
-                            ? `${(item.resource.downloads / 1000).toFixed(1)}k`
-                            : item.resource.downloads}
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-muted-foreground">喜欢</div>
-                        <div className="font-semibold">
-                          {item.resource.likes >= 1000
-                            ? `${(item.resource.likes / 1000).toFixed(1)}k`
-                            : item.resource.likes}
-                        </div>
-                      </div>
-                      <div className="text-center min-w-[80px]">
-                        <div className="text-muted-foreground">综合评分</div>
-                        <div className="font-semibold text-primary">
-                          {item.resource.score.toFixed(0)}
-                        </div>
-                      </div>
-                    </div>
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-20 rounded-lg bg-muted/60 animate-pulse" />
+          ))}
+        </div>
+      ) : rankings.length > 0 ? (
+        <div className="space-y-3">
+          {rankings.map((item) => (
+            <Card
+              key={item.id}
+              className={cn(
+                'hover:bg-secondary/30 transition-colors',
+                item.rank <= 3 && 'border-primary/30 bg-primary/5'
+              )}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center gap-4">
+                  {/* 排名 */}
+                  <div className="flex flex-col items-center min-w-[60px]">
+                    {getRankIcon(item.rank)}
                   </div>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+
+                  {/* 资源信息 */}
+                  <Link
+                    href={`/resource/${item.id}`}
+                    className="flex-1 min-w-0 group"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-lg group-hover:text-primary transition-colors line-clamp-1">
+                          {item.name}
+                        </h3>
+                        <div className="flex items-center gap-3 mt-1">
+                          <Link
+                            href={`/user/${item.author.username}`}
+                            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {item.author.avatarUrl && (
+                              <img
+                                src={item.author.avatarUrl}
+                                alt={item.author.username}
+                                className="w-4 h-4 rounded-full"
+                              />
+                            )}
+                            {item.author.username}
+                          </Link>
+                          <StarRating
+                            value={item.averageRating}
+                            count={item.ratingCount}
+                            size="sm"
+                            readOnly
+                            showCount
+                          />
+                        </div>
+                      </div>
+
+                      {/* 统计数据 */}
+                      <div className="flex items-center gap-6 text-sm">
+                        <div className="text-center">
+                          <div className="text-muted-foreground">下载</div>
+                          <div className="font-semibold">
+                            {item.downloads >= 1000
+                              ? `${(item.downloads / 1000).toFixed(1)}k`
+                              : item.downloads}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-muted-foreground">喜欢</div>
+                          <div className="font-semibold">
+                            {item.likes >= 1000
+                              ? `${(item.likes / 1000).toFixed(1)}k`
+                              : item.likes}
+                          </div>
+                        </div>
+                        <div className="text-center min-w-[80px]">
+                          <div className="text-muted-foreground">综合评分</div>
+                          <div className="font-semibold text-primary">
+                            {item.score.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-16">
+          <p className="text-muted-foreground text-lg">暂无排行数据</p>
+        </div>
+      )}
     </div>
   );
 }
-
-// Mock 数据（复用）
-const mockResources: PublicResource[] = [
-  {
-    id: '1',
-    name: 'SpectrAI 多会话编排 Workflow',
-    description: '自动管理多个 AI CLI 会话，实现任务分配、进度跟踪和结果汇总的完整工作流',
-    type: 'workflow' as any,
-    author: {
-      id: 'user1',
-      username: 'AIBuilder',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=AIBuilder',
-    },
-    isPublished: true,
-    version: '1.2.0',
-    tags: ['自动化', '会话管理', '效率工具'],
-    content: {} as any,
-    downloads: 1234,
-    likes: 567,
-    createdAt: new Date('2025-03-15T10:00:00Z'),
-    updatedAt: new Date('2025-03-28T15:30:00Z'),
-  },
-  {
-    id: '2',
-    name: '前端开发专家团队 Team',
-    description: '包含 React、Vue、Angular 专家的完整前端开发团队配置',
-    type: 'team' as any,
-    author: {
-      id: 'user2',
-      username: 'TeamMaster',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=TeamMaster',
-    },
-    isPublished: true,
-    version: '2.0.1',
-    tags: ['前端', 'React', 'Vue'],
-    content: {} as any,
-    downloads: 892,
-    likes: 421,
-    createdAt: new Date('2025-03-10T08:00:00Z'),
-    updatedAt: new Date('2025-03-25T12:00:00Z'),
-  },
-  {
-    id: '3',
-    name: '代码审查 Skill',
-    description: '自动检测代码质量问题、安全漏洞和性能问题的智能审查技能',
-    type: 'skill' as any,
-    author: {
-      id: 'user3',
-      username: 'CodeReviewer',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=CodeReviewer',
-    },
-    isPublished: true,
-    version: '1.5.0',
-    tags: ['代码质量', '安全'],
-    content: {} as any,
-    downloads: 2156,
-    likes: 983,
-    createdAt: new Date('2025-03-01T09:00:00Z'),
-    updatedAt: new Date('2025-03-29T14:00:00Z'),
-  },
-  {
-    id: '4',
-    name: 'GitHub MCP Server',
-    description: '完整的 GitHub API 集成，支持 Issue、PR、Repository 管理',
-    type: 'mcp' as any,
-    author: {
-      id: 'user4',
-      username: 'MCPPublisher',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=MCPPublisher',
-    },
-    isPublished: true,
-    version: '3.1.0',
-    tags: ['GitHub', 'API'],
-    content: {} as any,
-    downloads: 3421,
-    likes: 1567,
-    createdAt: new Date('2025-02-20T11:00:00Z'),
-    updatedAt: new Date('2025-03-27T16:00:00Z'),
-  },
-  {
-    id: '5',
-    name: '数据分析 Workflow',
-    description: '从数据导入、清洗、分析到可视化的完整数据分析流程',
-    type: 'workflow' as any,
-    author: {
-      id: 'user5',
-      username: 'DataPro',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DataPro',
-    },
-    isPublished: true,
-    version: '1.0.3',
-    tags: ['数据分析', '可视化'],
-    content: {} as any,
-    downloads: 756,
-    likes: 342,
-    createdAt: new Date('2025-03-18T13:00:00Z'),
-    updatedAt: new Date('2025-03-26T10:00:00Z'),
-  },
-  {
-    id: '6',
-    name: 'Prompt 优化 Skill',
-    description: '自动优化 AI 提示词，提升输出质量和准确率的智能技能',
-    type: 'skill' as any,
-    author: {
-      id: 'user6',
-      username: 'PromptEng',
-      avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=PromptEng',
-    },
-    isPublished: true,
-    version: '2.1.0',
-    tags: ['Prompt', 'AI 优化'],
-    content: {} as any,
-    downloads: 1876,
-    likes: 823,
-    createdAt: new Date('2025-03-05T07:00:00Z'),
-    updatedAt: new Date('2025-03-28T09:00:00Z'),
-  },
-];

@@ -34,13 +34,13 @@ const projectRankingQuery = z.object({
 });
 
 // ── Helpers ─────────────────────────────────────────────────
-function getPeriodFilter(period: string): Date | null {
+function getPeriodFilter(period: string): string | null {
   const now = new Date();
   if (period === "week") {
-    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
   }
   if (period === "month") {
-    return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
   }
   return null; // "all"
 }

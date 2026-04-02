@@ -21,6 +21,26 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
     while (i < lines.length) {
       const line = lines[i];
 
+      // 围栏代码块 ```
+      if (line.trimStart().startsWith('```')) {
+        const lang = line.trimStart().slice(3).trim();
+        i++;
+        const codeLines: string[] = [];
+        while (i < lines.length && !lines[i].trimStart().startsWith('```')) {
+          codeLines.push(lines[i]);
+          i++;
+        }
+        if (i < lines.length) i++; // 跳过结束的 ```
+        elements.push(
+          <pre key={key++} className="bg-secondary rounded-lg p-4 my-4 overflow-x-auto">
+            <code className={lang ? `language-${lang}` : ''}>
+              {codeLines.join('\n')}
+            </code>
+          </pre>
+        );
+        continue;
+      }
+
       // 标题
       if (line.startsWith('### ')) {
         elements.push(
@@ -116,7 +136,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
 
       // 段落
       const paraLines: string[] = [];
-      while (i < lines.length && lines[i].trim() !== '' && !lines[i].startsWith('#') && !lines[i].startsWith('>') && !lines[i].startsWith('- ') && !lines[i].startsWith('* ') && !/^\d+\.\s/.test(lines[i]) && lines[i] !== '---' && lines[i] !== '***' && lines[i] !== '___') {
+      while (i < lines.length && lines[i].trim() !== '' && !lines[i].startsWith('#') && !lines[i].startsWith('>') && !lines[i].startsWith('- ') && !lines[i].startsWith('* ') && !/^\d+\.\s/.test(lines[i]) && lines[i] !== '---' && lines[i] !== '***' && lines[i] !== '___' && !lines[i].trimStart().startsWith('```')) {
         paraLines.push(lines[i]);
         i++;
       }
@@ -133,70 +153,149 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   };
 
   const renderInline = (text: string): React.ReactNode => {
-    // 处理行内代码
-    const parts: React.ReactNode[] = [];
-    const codeRegex = /`([^`]+)`/g;
-    let lastIndex = 0;
-    let match;
+    // 第一步：处理图片 ![alt](url)
+    const imgParts: React.ReactNode[] = [];
+    const imgRegex = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    let imgLastIndex = 0;
+    let imgMatch;
 
-    while ((match = codeRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(text.slice(lastIndex, match.index));
+    while ((imgMatch = imgRegex.exec(text)) !== null) {
+      if (imgMatch.index > imgLastIndex) {
+        imgParts.push(text.slice(imgLastIndex, imgMatch.index));
       }
-      parts.push(
-        <code key={`code-${match.index}`} className="bg-secondary px-1.5 py-0.5 rounded text-sm font-mono">
-          {match[1]}
-        </code>
+      imgParts.push(
+        <img
+          key={`img-${imgMatch.index}`}
+          src={imgMatch[2]}
+          alt={imgMatch[1]}
+          className="max-w-full h-auto rounded-lg my-2 inline-block"
+        />
       );
-      lastIndex = match.index + match[0].length;
+      imgLastIndex = imgMatch.index + imgMatch[0].length;
     }
-    if (lastIndex < text.length) {
-      parts.push(text.slice(lastIndex));
+    if (imgLastIndex < text.length) {
+      imgParts.push(text.slice(imgLastIndex));
+    }
+    if (imgLastIndex === 0) {
+      imgParts.length = 0;
+      imgParts.push(text);
     }
 
-    // 处理粗体和斜体
-    return parts.map((part, idx) => {
-      if (typeof part !== 'string') return part;
+    // 第二步：处理行内代码和其他格式
+    return imgParts.map((imgPart, imgIdx) => {
+      if (typeof imgPart !== 'string') return imgPart;
 
-      // 处理 **bold**
-      const boldRegex = /\*\*([^*]+)\*\*/g;
-      const boldParts: React.ReactNode[] = [];
-      let boldLastIndex = 0;
-      let boldMatch;
+      // 处理行内代码
+      const parts: React.ReactNode[] = [];
+      const codeRegex = /`([^`]+)`/g;
+      let lastIndex = 0;
+      let match;
 
-      while ((boldMatch = boldRegex.exec(part)) !== null) {
-        if (boldMatch.index > boldLastIndex) {
-          boldParts.push(processItalic(part.slice(boldLastIndex, boldMatch.index)));
+      while ((match = codeRegex.exec(imgPart)) !== null) {
+        if (match.index > lastIndex) {
+          parts.push(imgPart.slice(lastIndex, match.index));
         }
-        boldParts.push(<strong key={`bold-${boldMatch.index}`}>{boldMatch[1]}</strong>);
-        boldLastIndex = boldMatch.index + boldMatch[0].length;
+        parts.push(
+          <code key={`code-${imgIdx}-${match.index}`} className="bg-secondary px-1.5 py-0.5 rounded text-sm font-mono">
+            {match[1]}
+          </code>
+        );
+        lastIndex = match.index + match[0].length;
       }
-      if (boldLastIndex < part.length) {
-        boldParts.push(processItalic(part.slice(boldLastIndex)));
+      if (lastIndex < imgPart.length) {
+        parts.push(imgPart.slice(lastIndex));
       }
 
-      return boldParts.length > 0 ? boldParts : part;
+      // 处理链接 [text](url)
+      const processLinks = (input: string): React.ReactNode => {
+        const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+        const linkParts: React.ReactNode[] = [];
+        let linkLastIndex = 0;
+        let linkMatch;
+
+        while ((linkMatch = linkRegex.exec(input)) !== null) {
+          if (linkMatch.index > linkLastIndex) {
+            linkParts.push(input.slice(linkLastIndex, linkMatch.index));
+          }
+          linkParts.push(
+            <a key={`link-${linkMatch.index}`} href={linkMatch[2]} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+              {linkMatch[1]}
+            </a>
+          );
+          linkLastIndex = linkMatch.index + linkMatch[0].length;
+        }
+        if (linkLastIndex < input.length) {
+          linkParts.push(input.slice(linkLastIndex));
+        }
+        return linkParts.length > 0 ? linkParts : input;
+      };
+
+      // 处理斜体 *italic*，非斜体部分交给 processLinks
+      const processItalicAndLinks = (input: string): React.ReactNode => {
+        const italicRegex = /\*([^*]+)\*/g;
+        const italicParts: React.ReactNode[] = [];
+        let italicLastIndex = 0;
+        let italicMatch;
+
+        while ((italicMatch = italicRegex.exec(input)) !== null) {
+          if (italicMatch.index > italicLastIndex) {
+            italicParts.push(processLinks(input.slice(italicLastIndex, italicMatch.index)));
+          }
+          italicParts.push(<em key={`italic-${imgIdx}-${italicMatch.index}`}>{italicMatch[1]}</em>);
+          italicLastIndex = italicMatch.index + italicMatch[0].length;
+        }
+        if (italicLastIndex < input.length) {
+          italicParts.push(processLinks(input.slice(italicLastIndex)));
+        }
+
+        return italicParts.length > 0 ? italicParts : processLinks(input);
+      };
+
+      // 处理粗斜体、粗体和斜体
+      return parts.map((part, idx) => {
+        if (typeof part !== 'string') return part;
+
+        // 辅助：处理 **bold**，非bold部分交给 processItalicAndLinks
+        const processBold = (input: string): React.ReactNode[] => {
+          const boldRegex = /\*\*([^*]+)\*\*/g;
+          const boldParts: React.ReactNode[] = [];
+          let boldLastIndex = 0;
+          let boldMatch;
+
+          while ((boldMatch = boldRegex.exec(input)) !== null) {
+            if (boldMatch.index > boldLastIndex) {
+              boldParts.push(processItalicAndLinks(input.slice(boldLastIndex, boldMatch.index)));
+            }
+            boldParts.push(<strong key={`bold-${boldMatch.index}`}>{boldMatch[1]}</strong>);
+            boldLastIndex = boldMatch.index + boldMatch[0].length;
+          }
+          if (boldLastIndex < input.length) {
+            boldParts.push(processItalicAndLinks(input.slice(boldLastIndex)));
+          }
+
+          return boldParts.length > 0 ? boldParts : [processItalicAndLinks(input)];
+        };
+
+        // 先处理 ***bold-italic***，再处理 **bold**
+        const boldItalicRegex = /\*\*\*(.+?)\*\*\*/g;
+        const biParts: React.ReactNode[] = [];
+        let biLastIndex = 0;
+        let biMatch;
+
+        while ((biMatch = boldItalicRegex.exec(part)) !== null) {
+          if (biMatch.index > biLastIndex) {
+            biParts.push(...processBold(part.slice(biLastIndex, biMatch.index)));
+          }
+          biParts.push(<strong key={`bi-${biMatch.index}`}><em>{biMatch[1]}</em></strong>);
+          biLastIndex = biMatch.index + biMatch[0].length;
+        }
+        if (biLastIndex < part.length) {
+          biParts.push(...processBold(part.slice(biLastIndex)));
+        }
+
+        return biParts.length > 0 ? biParts : processBold(part);
+      });
     });
-  };
-
-  const processItalic = (text: string): React.ReactNode => {
-    const italicRegex = /\*([^*]+)\*/g;
-    const italicParts: React.ReactNode[] = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = italicRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        italicParts.push(text.slice(lastIndex, match.index));
-      }
-      italicParts.push(<em key={`italic-${match.index}`}>{match[1]}</em>);
-      lastIndex = match.index + match[0].length;
-    }
-    if (lastIndex < text.length) {
-      italicParts.push(text.slice(lastIndex));
-    }
-
-    return italicParts.length > 0 ? italicParts : text;
   };
 
   return (

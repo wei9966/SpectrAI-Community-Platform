@@ -89,7 +89,7 @@ export function Footer() {
 
         {/* 版权信息 */}
         <div className="mt-8 pt-8 border-t border-border/40 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground" suppressHydrationWarning>
             © {new Date().getFullYear()} SpectrAI Community. All rights reserved.
           </p>
           <div className="flex items-center space-x-4">

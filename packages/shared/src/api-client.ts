@@ -1,7 +1,6 @@
 import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, AuthResponse, SearchParams, PaginationInfo } from './types/api';
 import type { Resource, PublicResource, CreateResourceInput, UpdateResourceInput, ResourceType } from './types/resource';
 import type { User, PublicUser, UpdateUserInput } from './types/user';
-import type { ForumPost, ForumPostDetail, ForumReplyFlat, CreatePostInput, CreateReplyInput, PostStatus, ReviewPostInput } from './types/forum';
 
 // API base URL - use environment variable or default to localhost
 // NEXT_PUBLIC_API_URL points to the API server root (e.g. http://host:3101),
@@ -165,10 +164,6 @@ export const resourcesApi = {
     return fetchApi<{ favorited: boolean }>(`/resources/${id}/favorite`, {
       method: 'POST',
     });
-  },
-
-  async getInstallManifest(id: string): Promise<ApiResponse<InstallManifest>> {
-    return fetchApi<InstallManifest>(`/resources/${id}/install-manifest`);
   },
 };
 
@@ -456,88 +451,6 @@ export const notificationsApi = {
 
   async delete(id: string): Promise<ApiResponse<{ message: string }>> {
     return fetchApi(`/notifications/${id}`, { method: 'DELETE' });
-  },
-};
-
-/**
- * Forum API client
- */
-export interface PendingPost {
-  id: string;
-  title: string;
-  content: string;
-  category: {
-    id: string;
-    name: string;
-    slug: string;
-  };
-  author: {
-    id: string;
-    username: string;
-    avatarUrl: string | null;
-  };
-  createdAt: string;
-  status: 'pending';
-}
-
-export interface InstallManifest {
-  type: string;
-  name: string;
-  version: string;
-  installUrl: string;
-  content: Record<string, unknown>;
-}
-
-export const forumApi = {
-  async listPosts(params?: { page?: number; limit?: number; sort?: string; status?: PostStatus }): Promise<PaginatedResponse<unknown>> {
-    const searchParams = new URLSearchParams();
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          searchParams.append(key, String(value));
-        }
-      });
-    }
-    return fetchApi(`/forum/posts?${searchParams}`) as Promise<PaginatedResponse<unknown>>;
-  },
-
-  async getPendingPosts(params?: { page?: number; limit?: number }): Promise<ApiResponse<PendingPost[]>> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.set('page', String(params.page));
-    if (params?.limit) searchParams.set('limit', String(params.limit));
-    return fetchApi<PendingPost[]>(`/forum/posts/pending?${searchParams}`);
-  },
-
-  async reviewPost(id: string, input: ReviewPostInput): Promise<ApiResponse<{ id: string; status: string }>> {
-    return fetchApi(`/forum/posts/${id}/review`, {
-      method: 'PATCH',
-      body: JSON.stringify(input),
-    });
-  },
-
-  async createPost(input: CreatePostInput): Promise<ApiResponse<ForumPost>> {
-    return fetchApi<ForumPost>('/forum/posts', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
-  },
-
-  async getPost(id: string): Promise<ApiResponse<ForumPostDetail>> {
-    return fetchApi<ForumPostDetail>(`/forum/posts/${id}`);
-  },
-
-  async getPostsByCategory(categorySlug: string, params?: { page?: number; limit?: number }): Promise<PaginatedResponse<ForumPostDetail>> {
-    const searchParams = new URLSearchParams();
-    if (params?.page) searchParams.set('page', String(params.page));
-    if (params?.limit) searchParams.set('limit', String(params.limit));
-    return fetchApi(`/forum/${categorySlug}?${searchParams}`) as Promise<PaginatedResponse<ForumPostDetail>>;
-  },
-
-  async createReply(input: CreateReplyInput): Promise<ApiResponse<ForumReplyFlat>> {
-    return fetchApi<ForumReplyFlat>('/forum/replies', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
   },
 };
 

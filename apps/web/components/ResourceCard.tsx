@@ -33,8 +33,8 @@ export function ResourceCard({
   const variant = getResourceTypeVariant(resource.type);
 
   // 模拟评分数据（后续 API 对接后从 props 传入）
-  const averageRating = (resource as any).averageRating ?? 0;
-  const ratingCount = (resource as any).ratingCount ?? 0;
+  const averageRating = Number((resource as any).averageRating) || 0;
+  const ratingCount = Number((resource as any).ratingCount) || 0;
 
   const timeAgo = (date: Date) => {
     const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
@@ -63,7 +63,7 @@ export function ResourceCard({
           <Badge variant={variant as any} className="text-xs">
             {getResourceTypeLabel(resource.type)}
           </Badge>
-          <span className="text-xs text-muted-foreground">{timeAgo(resource.updatedAt)}</span>
+          <span className="text-xs text-muted-foreground">{timeAgo(resource.updatedAt || resource.createdAt)}</span>
         </div>
         <Link href={`/resource/${resource.id}`}>
           <h3 className="font-semibold text-lg line-clamp-1 group-hover:text-primary transition-colors">

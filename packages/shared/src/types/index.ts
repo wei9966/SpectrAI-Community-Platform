@@ -27,6 +27,3 @@ export * from './user-enhanced';
 
 // Ranking types
 export * from './ranking';
-
-// Install manifest types
-export * from './install-manifest';

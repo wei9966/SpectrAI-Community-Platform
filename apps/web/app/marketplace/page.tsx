@@ -7,17 +7,20 @@ import { SearchBar } from "@/components/SearchBar";
 import { TypeFilter } from "@/components/TypeFilter";
 import { ResourceCard } from "@/components/ResourceCard";
 import { Pagination } from "@/components/Pagination";
-import { mockResources } from "@/lib/mock-data";
-import type { ResourceType } from "@spectrai-community/shared";
+import type { ResourceType, PublicResource } from "@spectrai-community/shared";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 function MarketContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [resources, setResources] = React.useState(mockResources);
-  const [filteredResources, setFilteredResources] = React.useState(mockResources);
+  const [resources, setResources] = React.useState<PublicResource[]>([]);
+  const [totalCount, setTotalCount] = React.useState(0);
+  const [totalPages, setTotalPages] = React.useState(1);
   const [selectedType, setSelectedType] = React.useState<ResourceType | 'all'>('all');
   const [searchQuery, setSearchQuery] = React.useState("");
   const [currentPage, setCurrentPage] = React.useState(1);
+  const [isLoading, setIsLoading] = React.useState(true);
   const itemsPerPage = 8;
 
   // 从 URL 读取初始筛选条件
@@ -29,36 +32,48 @@ function MarketContent() {
     setSearchQuery(query);
   }, [searchParams]);
 
-  // 筛选资源
+  // 从 API 获取资源数据
   React.useEffect(() => {
-    let filtered = mockResources;
+    let cancelled = false;
 
-    // 类型筛选
-    if (selectedType !== 'all') {
-      filtered = filtered.filter((r) => r.type === selectedType);
+    async function fetchResources() {
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set('page', String(currentPage));
+        params.set('limit', String(itemsPerPage));
+        if (selectedType !== 'all') params.set('type', selectedType);
+        if (searchQuery) params.set('q', searchQuery);
+
+        const res = await fetch(`${API_BASE}/api/resources?${params.toString()}`);
+        if (!res.ok) throw new Error('Failed to fetch resources');
+
+        const json = await res.json();
+        if (cancelled) return;
+
+        const data = json.data || json;
+        setResources(data.items || []);
+        setTotalCount(data.pagination?.total || 0);
+        setTotalPages(data.pagination?.totalPages || 1);
+      } catch (err) {
+        console.error('Failed to load resources:', err);
+        if (!cancelled) {
+          setResources([]);
+          setTotalCount(0);
+          setTotalPages(1);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     }
 
-    // 搜索筛选
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (r) =>
-          r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (r.description ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (r.tags ?? []).some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-      );
-    }
-
-    setFilteredResources(filtered);
-    setCurrentPage(1); // 重置到第一页
-  }, [selectedType, searchQuery]);
-
-  // 分页
-  const totalPages = Math.ceil(filteredResources.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedResources = filteredResources.slice(startIndex, endIndex);
+    fetchResources();
+    return () => { cancelled = true; };
+  }, [selectedType, searchQuery, currentPage]);
 
   const handleSearch = (query: string) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
     const params = new URLSearchParams(searchParams);
     if (query) {
       params.set('q', query);
@@ -70,6 +85,7 @@ function MarketContent() {
 
   const handleTypeChange = (type: ResourceType | 'all') => {
     setSelectedType(type);
+    setCurrentPage(1);
     const params = new URLSearchParams(searchParams);
     if (type !== 'all') {
       params.set('type', type);
@@ -107,15 +123,21 @@ function MarketContent() {
 
       {/* 结果统计 */}
       <div className="mb-6 text-sm text-muted-foreground">
-        共找到 {filteredResources.length} 个资源
+        共找到 {totalCount} 个资源
         {searchQuery && `（"${searchQuery}"）`}
       </div>
 
       {/* 资源网格 */}
-      {paginatedResources.length > 0 ? (
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {Array.from({ length: itemsPerPage }).map((_, i) => (
+            <div key={i} className="h-52 rounded-lg bg-muted/60 animate-pulse" />
+          ))}
+        </div>
+      ) : resources.length > 0 ? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {paginatedResources.map((resource) => (
+            {resources.map((resource) => (
               <ResourceCard key={resource.id} resource={resource} />
             ))}
           </div>

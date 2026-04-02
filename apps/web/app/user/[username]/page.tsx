@@ -38,10 +38,11 @@ interface UserProfile {
 }
 
 interface UserStats {
-  downloads: number;
-  likes: number;
-  rating: number;
+  totalDownloads: number;
+  totalLikes: number;
+  averageRating: number;
   ratingCount: number;
+  resourceCount: number;
 }
 
 interface ActivityItem {
@@ -471,7 +472,7 @@ export default function UserProfilePage() {
                 <div>
                   <div className="text-sm text-muted-foreground">总下载数</div>
                   <div className="text-xl font-bold">
-                    {(stats?.downloads ?? 0).toLocaleString()}
+                    {(stats?.totalDownloads ?? 0).toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -483,7 +484,7 @@ export default function UserProfilePage() {
                 <div>
                   <div className="text-sm text-muted-foreground">总获赞</div>
                   <div className="text-xl font-bold">
-                    {(stats?.likes ?? 0).toLocaleString()}
+                    {(stats?.totalLikes ?? 0).toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -496,7 +497,7 @@ export default function UserProfilePage() {
                   <div className="text-sm text-muted-foreground">平均评分</div>
                   <div className="flex items-center gap-1">
                     <span className="text-xl font-bold">
-                      {(stats?.rating ?? 0).toFixed(1)}
+                      {(stats?.averageRating ?? 0).toFixed(1)}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       ({stats?.ratingCount ?? 0}人)
@@ -509,7 +510,7 @@ export default function UserProfilePage() {
             {/* Star rating display */}
             <div className="mt-4 pt-4 border-t border-border flex items-center gap-2">
               <span className="text-sm text-muted-foreground">综合评分：</span>
-              <StarRating value={stats?.rating ?? 0} size="sm" readOnly />
+              <StarRating value={stats?.averageRating ?? 0} size="sm" readOnly />
             </div>
           </CardContent>
         </Card>

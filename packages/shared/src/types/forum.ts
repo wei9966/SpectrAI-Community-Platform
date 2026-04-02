@@ -3,11 +3,6 @@
  */
 
 /**
- * Post approval status
- */
-export type PostStatus = 'pending' | 'approved' | 'rejected';
-
-/**
  * Vote value enumeration
  */
 export enum VoteValue {
@@ -47,10 +42,6 @@ export interface ForumPost {
   isLocked: boolean;
   isResolved: boolean;
   acceptedReplyId: string | null;
-  status: PostStatus;
-  reviewedBy: string | null;
-  reviewedAt: Date | null;
-  rejectReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -137,14 +128,6 @@ export interface CreateReplyInput {
   postId: string;
   parentId?: string | null;
   content: string;
-}
-
-/**
- * Input for reviewing (approve/reject) a post
- */
-export interface ReviewPostInput {
-  action: 'approve' | 'reject';
-  reason?: string;
 }
 
 /**

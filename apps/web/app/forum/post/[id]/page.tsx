@@ -301,7 +301,7 @@ export default function PostDetailPage() {
             <Card>
               <CardHeader>
                 <h3 className="font-semibold">
-                  {replyingTo ? '回复回复' : '发表评论'}
+                  {replyingTo ? '回复评论' : '发表评论'}
                 </h3>
               </CardHeader>
               <CardContent>

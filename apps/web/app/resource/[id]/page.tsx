@@ -399,9 +399,9 @@ export default function ResourceDetailPage() {
     id: c.id,
     resourceId: resource.id,
     user: {
-      id: c.userId ?? c.author?.username ?? '',
-      username: c.author?.username ?? 'Unknown',
-      avatarUrl: c.author?.avatarUrl ?? null,
+      id: c.user?.id ?? c.userId ?? '',
+      username: c.user?.username ?? 'Unknown',
+      avatarUrl: c.user?.avatarUrl ?? null,
     },
     content: c.content,
     createdAt: new Date(c.createdAt),
