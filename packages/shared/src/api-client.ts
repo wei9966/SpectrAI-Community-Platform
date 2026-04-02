@@ -1,5 +1,6 @@
 import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, AuthResponse, SearchParams, PaginationInfo } from './types/api';
 import type { Resource, PublicResource, CreateResourceInput, UpdateResourceInput, ResourceType } from './types/resource';
+import type { InstallManifest, InstallDependency } from './types/install-manifest';
 import type { User, PublicUser, UpdateUserInput } from './types/user';
 
 // API base URL - use environment variable or default to localhost
@@ -451,6 +452,34 @@ export const notificationsApi = {
 
   async delete(id: string): Promise<ApiResponse<{ message: string }>> {
     return fetchApi(`/notifications/${id}`, { method: 'DELETE' });
+  },
+};
+
+/**
+ * Deep-link protocol constant for client-side URL generation.
+ */
+const DEEP_LINK_PROTOCOL = 'claudeops://';
+
+/**
+ * Install API client — manifest retrieval and deep-link generation.
+ */
+export const installApi = {
+  /**
+   * Fetch the standardized install manifest for a resource.
+   */
+  async getManifest(id: string): Promise<ApiResponse<InstallManifest>> {
+    return fetchApi<InstallManifest>(`/resources/${id}/install-manifest`);
+  },
+
+  /**
+   * Generate a claudeops:// install URL on the client side.
+   */
+  getInstallUrl(type: ResourceType | string, id: string, version?: string): string {
+    const base = `${DEEP_LINK_PROTOCOL}install/${type}/${encodeURIComponent(id)}`;
+    if (version) {
+      return `${base}?version=${encodeURIComponent(version)}`;
+    }
+    return base;
   },
 };
 

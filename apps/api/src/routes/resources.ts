@@ -19,6 +19,10 @@ import {
   resourceComments,
 } from "../db/schema.js";
 import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
+import {
+  generateInstallUrl,
+  computeContentChecksum,
+} from "../lib/deep-link.js";
 
 const resourceRoutes = new Hono();
 
@@ -31,6 +35,7 @@ const createResourceSchema = z.object({
   tags: z.array(z.string()).optional(),
   version: z.string().optional(),
   isPublished: z.boolean().optional(),
+  sourceApp: z.string().optional(),
 });
 
 const updateResourceSchema = z.object({
@@ -57,7 +62,7 @@ resourceRoutes.get("/", optionalAuthMiddleware, async (c) => {
   const offset = (page - 1) * limit;
   const currentUserId: string | undefined = c.get("user")?.userId;
 
-  const conditions = [eq(resources.isPublished, true)];
+  const conditions = [eq(resources.isPublished, true), eq(resources.reviewStatus, "approved")];
   if (type) {
     conditions.push(eq(resources.type, type));
   }
@@ -234,6 +239,59 @@ resourceRoutes.get("/:id", optionalAuthMiddleware, async (c) => {
   return c.json({ success: true, data: resource });
 });
 
+// ── GET /api/resources/:id/install-manifest ────────────────
+resourceRoutes.get("/:id/install-manifest", optionalAuthMiddleware, async (c) => {
+  const id = c.req.param("id")!;
+
+  // Fetch the resource — must be published and approved
+  const [resource] = await db
+    .select({
+      id: resources.id,
+      name: resources.name,
+      type: resources.type,
+      content: resources.content,
+      version: resources.version,
+      isPublished: resources.isPublished,
+      reviewStatus: resources.reviewStatus,
+      createdAt: resources.createdAt,
+      author: {
+        username: users.username,
+        avatarUrl: users.avatarUrl,
+      },
+    })
+    .from(resources)
+    .leftJoin(users, eq(resources.authorId, users.id))
+    .where(eq(resources.id, id))
+    .limit(1);
+
+  if (!resource || !resource.isPublished || resource.reviewStatus !== "approved") {
+    return c.json({ success: false, error: "Resource not found" }, 404);
+  }
+
+  // Resolve dependencies for workflow resources
+  const dependencies = await resolveDependencies(resource.type, resource.content);
+
+  const installUrl = generateInstallUrl(resource.type, resource.id, resource.version);
+  const checksum = computeContentChecksum(resource.content);
+
+  // Note: install-manifest does NOT increment downloads (only GET /:id does)
+  return c.json({
+    success: true,
+    data: {
+      id: resource.id,
+      type: resource.type,
+      name: resource.name,
+      version: resource.version,
+      content: resource.content,
+      author: resource.author,
+      dependencies,
+      installUrl,
+      createdAt: resource.createdAt,
+      checksum,
+    },
+  });
+});
+
 // ── POST /api/resources ─────────────────────────────────────
 resourceRoutes.post(
   "/",
@@ -248,6 +306,7 @@ resourceRoutes.post(
       .values({
         ...body,
         authorId: userId,
+        sourceApp: body.sourceApp || "web",
       })
       .returning();
 
@@ -437,5 +496,63 @@ resourceRoutes.post(
     return c.json({ success: true, data: comment }, 201);
   }
 );
+
+// ── Dependency resolution for workflows ──────────────────────
+async function resolveDependencies(
+  resourceType: string,
+  content: unknown
+): Promise<Array<{ type: string; id: string; name: string; version: string; installUrl: string }>> {
+  if (resourceType !== "workflow" || !content || typeof content !== "object") {
+    return [];
+  }
+
+  const workflowContent = content as { steps?: Array<{ type: string; config?: Record<string, unknown> }> };
+  if (!workflowContent.steps || !Array.isArray(workflowContent.steps)) {
+    return [];
+  }
+
+  // Collect referenced resource IDs from workflow steps
+  const referencedIds: string[] = [];
+  const stepTypes = new Map<string, string>(); // id -> type
+
+  for (const step of workflowContent.steps) {
+    if (step.type === "skill_invoke" && step.config?.skillId && typeof step.config.skillId === "string") {
+      referencedIds.push(step.config.skillId);
+      stepTypes.set(step.config.skillId, "skill");
+    } else if (step.type === "mcp_call" && step.config?.mcpId && typeof step.config.mcpId === "string") {
+      referencedIds.push(step.config.mcpId);
+      stepTypes.set(step.config.mcpId, "mcp");
+    }
+  }
+
+  if (referencedIds.length === 0) {
+    return [];
+  }
+
+  // Look up matching published & approved resources
+  const matchedResources = await db
+    .select({
+      id: resources.id,
+      name: resources.name,
+      type: resources.type,
+      version: resources.version,
+    })
+    .from(resources)
+    .where(
+      and(
+        sql`${resources.id} = ANY(${referencedIds})`,
+        eq(resources.isPublished, true),
+        eq(resources.reviewStatus, "approved")
+      )
+    );
+
+  return matchedResources.map((r) => ({
+    type: r.type,
+    id: r.id,
+    name: r.name,
+    version: r.version,
+    installUrl: generateInstallUrl(r.type, r.id, r.version),
+  }));
+}
 
 export default resourceRoutes;

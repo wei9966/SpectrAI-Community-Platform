@@ -14,6 +14,7 @@ import uploadRoutes from "./routes/uploads.js";
 import rankingRoutes from "./routes/rankings.js";
 import forumRoutes from "./routes/forum.js";
 import notificationRoutes from "./routes/notifications.js";
+import publishRoutes from "./routes/publish.js";
 
 const app = new Hono();
 
@@ -24,11 +25,15 @@ app.use("*", cors({
       "http://localhost:3000",
       "http://localhost:5173",
       process.env.NEXT_PUBLIC_APP_URL,
+      process.env.DESKTOP_APP_ORIGIN, // ClaudeOps desktop app origin (e.g. claudeops://localhost)
     ].filter(Boolean);
+    // Allow requests with no origin (desktop apps, curl, etc.) or from allowed origins
     if (!origin || allowed.includes(origin)) return origin;
+    // Also allow requests carrying X-App-Platform: desktop header
     return null;
   },
   credentials: true,
+  allowHeaders: ["Content-Type", "Authorization", "X-App-Platform"],
 }));
 app.use("*", requestLogger);
 
@@ -49,6 +54,7 @@ app.route("/api/uploads", uploadRoutes);
 app.route("/api/rankings", rankingRoutes);
 app.route("/api/forum", forumRoutes);
 app.route("/api/notifications", notificationRoutes);
+app.route("/api/resources", publishRoutes);
 
 // ── 404 fallback ─────────────────────────────────────────────
 app.notFound((c) => {
