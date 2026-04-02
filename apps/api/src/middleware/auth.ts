@@ -77,7 +77,7 @@ export async function authMiddleware(c: Context, next: Next) {
 
   const token = authHeader.slice(7);
   try {
-    const raw = verify(token, getEnv().JWT_SECRET);
+    const raw = verify(token, getEnv().JWT_SECRET, { algorithms: ["HS256"] });
 
     if (isClaudeOpsToken(raw)) {
       const communityUser = await resolveClaudeOpsUser(raw);
@@ -109,7 +109,7 @@ export async function optionalAuthMiddleware(c: Context, next: Next) {
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
     try {
-      const raw = verify(token, getEnv().JWT_SECRET);
+      const raw = verify(token, getEnv().JWT_SECRET, { algorithms: ["HS256"] });
 
       if (isClaudeOpsToken(raw)) {
         const communityUser = await resolveClaudeOpsUser(raw);

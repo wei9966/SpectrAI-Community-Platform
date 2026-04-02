@@ -22,7 +22,7 @@ function signCommunityToken(payload: JwtPayload): string {
 }
 
 function decodeClaudeOpsToken(token: string): ClaudeOpsJwtPayload {
-  const payload = verify(token, getEnv().JWT_SECRET);
+  const payload = verify(token, getEnv().JWT_SECRET, { algorithms: ["HS256"] });
   if (
     typeof payload !== "object" ||
     payload === null ||
