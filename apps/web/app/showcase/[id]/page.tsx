@@ -3,13 +3,14 @@
 import * as React from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Github, Heart, Calendar, Eye, Share2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Github, Heart, Calendar, Eye, Share2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ResourceCard } from '@/components/ResourceCard';
-import { mockResources } from '@/lib/mock-data';
 import type { PublicResource } from '@spectrai-community/shared';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 // 项目类型
 interface ShowcaseProject {
@@ -17,6 +18,7 @@ interface ShowcaseProject {
   title: string;
   description: string | null;
   coverImageUrl: string | null;
+  coverImage?: string | null;
   demoUrl: string | null;
   sourceUrl: string | null;
   author: {
@@ -27,55 +29,57 @@ interface ShowcaseProject {
   tags: string[];
   likes: number;
   views: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
   resources?: PublicResource[];
 }
-
-// Mock 数据
-const mockProject: ShowcaseProject = {
-  id: 'p1',
-  title: 'AI 代码审查助手',
-  description: `基于 GPT-4 的自动化代码审查工具，支持检测安全漏洞、性能问题和代码规范违规。
-
-## 功能特点
-
-- **自动化审查**：无需人工干预，自动扫描代码库中的问题
-- **多语言支持**：支持 Python、JavaScript、TypeScript、Go、Java 等主流语言
-- **安全检测**：内置 OWASP Top 10 安全漏洞检测规则
-- **GitHub 集成**：无缝集成到 GitHub Actions，支持 PR 自动评论
-- **详细报告**：生成可读性高的审查报告，包含问题定位和修复建议
-
-## 技术架构
-
-- 前端：Next.js 15 + React 19
-- 后端：Node.js + Express
-- AI：OpenAI GPT-4 API
-- 部署：Vercel + Railway`,
-  coverImageUrl: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=1200&h=600&fit=crop',
-  demoUrl: 'https://demo.example.com/code-review',
-  sourceUrl: 'https://github.com/example/code-review',
-  author: {
-    id: 'u1',
-    username: 'DevMaster',
-    avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=DevMaster',
-  },
-  tags: ['GPT-4', '代码审查', 'GitHub Actions', '安全检测', '自动化'],
-  likes: 328,
-  views: 4521,
-  createdAt: new Date('2025-03-20T10:00:00Z'),
-  updatedAt: new Date('2025-03-28T15:30:00Z'),
-  resources: mockResources.slice(0, 2),
-};
 
 export default function ShowcaseDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const [project, setProject] = React.useState(mockProject);
+  const [project, setProject] = React.useState<ShowcaseProject | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(false);
   const [isLiked, setIsLiked] = React.useState(false);
-  const [localLikes, setLocalLikes] = React.useState(mockProject.likes);
+  const [localLikes, setLocalLikes] = React.useState(0);
 
-  const timeAgo = (date: Date) => {
+  React.useEffect(() => {
+    if (!id) return;
+    setLoading(true);
+    setError(false);
+
+    const token = localStorage.getItem('auth_token');
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    fetch(`${API_BASE}/api/projects/${id}`, { headers })
+      .then(res => {
+        if (!res.ok) throw new Error('Not found');
+        return res.json();
+      })
+      .then(data => {
+        if (data.success && data.data) {
+          const p = data.data;
+          // 兼容后端字段名差异（coverImage vs coverImageUrl）
+          const normalized: ShowcaseProject = {
+            ...p,
+            coverImageUrl: p.coverImageUrl || p.coverImage || null,
+            tags: p.tags || [],
+            likes: p.likes ?? 0,
+            views: p.views ?? p.viewCount ?? 0,
+            resources: p.resources || [],
+          };
+          setProject(normalized);
+          setLocalLikes(normalized.likes);
+        } else {
+          setError(true);
+        }
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  const timeAgo = (date: string | Date) => {
     const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
     const intervals: Record<string, number> = {
       year: 31536000,
@@ -95,7 +99,7 @@ export default function ShowcaseDetailPage() {
     return '刚刚';
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: string | Date) => {
     return new Date(date).toLocaleDateString('zh-CN', {
       year: 'numeric',
       month: 'long',
@@ -103,26 +107,69 @@ export default function ShowcaseDetailPage() {
     });
   };
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLocalLikes(isLiked ? localLikes - 1 : localLikes + 1);
+  const handleLike = async () => {
+    const newIsLiked = !isLiked;
+    setIsLiked(newIsLiked);
+    setLocalLikes(newIsLiked ? localLikes + 1 : localLikes - 1);
+
+    // 尝试调用后端 API 持久化点赞状态
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        await fetch(`${API_BASE}/api/projects/${id}/like`, {
+          method: newIsLiked ? 'POST' : 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+      }
+    } catch {
+      // API 暂不可用时静默降级，保持本地状态
+    }
   };
 
   const handleShare = async () => {
     const url = window.location.href;
-    if (navigator.share) {
-      await navigator.share({
-        title: project.title,
-        text: project.description ?? undefined,
-        url,
-      });
-    } else {
-      await navigator.clipboard.writeText(url);
-      // TODO: 显示 toast 提示
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: project?.title ?? '',
+          text: project?.description ?? undefined,
+          url,
+        });
+        return;
+      }
+
+      // clipboard API 在 HTTPS 下可用
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        // HTTP 环境 fallback：使用临时 textarea 复制
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+    } catch {
+      // 分享/复制失败时静默处理
     }
   };
 
-  if (!project) {
+  if (loading) {
+    return (
+      <div className="container py-16 text-center">
+        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+        <p className="text-muted-foreground">加载中...</p>
+      </div>
+    );
+  }
+
+  if (error || !project) {
     return (
       <div className="container py-16 text-center">
         <h1 className="text-2xl font-bold mb-4">项目不存在</h1>
