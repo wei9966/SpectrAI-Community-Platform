@@ -27,3 +27,6 @@ export * from './user-enhanced';
 
 // Ranking types
 export * from './ranking';
+
+// ClaudeOps integration types
+export * from './claudeops';
