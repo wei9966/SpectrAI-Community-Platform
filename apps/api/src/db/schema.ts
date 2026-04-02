@@ -9,6 +9,7 @@ import {
   boolean,
   pgEnum,
   uniqueIndex,
+  index,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -22,6 +23,13 @@ export const resourceTypeEnum = pgEnum("resource_type", [
 
 export const userRoleEnum = pgEnum("user_role", ["user", "admin", "moderator"]);
 
+export const reviewStatusEnum = pgEnum("review_status", [
+  "draft",
+  "pending",
+  "approved",
+  "rejected",
+]);
+
 // ============================================================
 // Users
 // ============================================================
@@ -34,6 +42,10 @@ export const users = pgTable("users", {
   githubId: varchar("github_id", { length: 50 }).unique(),
   bio: text("bio"),
   role: userRoleEnum("role").default("user").notNull(),
+  displayName: varchar("display_name", { length: 100 }),
+  claudeopsUuid: varchar("claudeops_uuid", { length: 36 }).unique(),
+  claudeopsPlan: varchar("claudeops_plan", { length: 20 }),
+  claudeopsLinkedAt: timestamp("claudeops_linked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -45,27 +57,63 @@ export const users = pgTable("users", {
 // ============================================================
 // Resources
 // ============================================================
-export const resources = pgTable("resources", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  name: varchar("name", { length: 200 }).notNull(),
-  description: text("description").notNull().default(""),
-  type: resourceTypeEnum("type").notNull(),
-  content: jsonb("content").notNull().default({}),
-  authorId: uuid("author_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  downloads: integer("downloads").default(0).notNull(),
-  likes: integer("likes").default(0).notNull(),
-  tags: text("tags").array(),
-  version: varchar("version", { length: 50 }).default("1.0.0").notNull(),
-  isPublished: boolean("is_published").default(false).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-});
+export const resources = pgTable(
+  "resources",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: varchar("name", { length: 200 }).notNull(),
+    description: text("description").notNull().default(""),
+    type: resourceTypeEnum("type").notNull(),
+    content: jsonb("content").notNull().default({}),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    downloads: integer("downloads").default(0).notNull(),
+    likes: integer("likes").default(0).notNull(),
+    tags: text("tags").array(),
+    version: varchar("version", { length: 50 }).default("1.0.0").notNull(),
+    isPublished: boolean("is_published").default(false).notNull(),
+    reviewStatus: reviewStatusEnum("review_status").default("draft").notNull(),
+    reviewNote: text("review_note"),
+    reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    sourceApp: varchar("source_app", { length: 20 }).default("web").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_resources_review_status").on(table.reviewStatus),
+    index("idx_resources_source_app").on(table.sourceApp),
+  ]
+);
+
+// ============================================================
+// Resource Publish Log
+// ============================================================
+export const resourcePublishLog = pgTable(
+  "resource_publish_log",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    resourceId: uuid("resource_id")
+      .notNull()
+      .references(() => resources.id, { onDelete: "cascade" }),
+    action: varchar("action", { length: 50 }).notNull(),
+    previousStatus: varchar("previous_status", { length: 50 }),
+    newStatus: varchar("new_status", { length: 50 }).notNull(),
+    note: text("note"),
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_resource_publish_log_resource_id").on(table.resourceId),
+  ]
+);
 
 // ============================================================
 // Resource Comments
@@ -353,6 +401,7 @@ export const resourcesRelations = relations(resources, ({ one, many }) => ({
   ratings: many(resourceRatings),
   favorites: many(resourceFavorites),
   projectResources: many(projectResources),
+  publishLogs: many(resourcePublishLog),
 }));
 
 export const resourceCommentsRelations = relations(
@@ -404,6 +453,21 @@ export const resourceFavoritesRelations = relations(
     user: one(users, {
       fields: [resourceFavorites.userId],
       references: [users.id],
+    }),
+  })
+);
+
+export const resourcePublishLogRelations = relations(
+  resourcePublishLog,
+  ({ one }) => ({
+    resource: one(resources, {
+      fields: [resourcePublishLog.resourceId],
+      references: [resources.id],
+    }),
+    actor: one(users, {
+      fields: [resourcePublishLog.actorId],
+      references: [users.id],
+      relationName: "publishLogActor",
     }),
   })
 );
@@ -533,3 +597,5 @@ export type ForumVote = typeof forumVotes.$inferSelect;
 export type NewForumVote = typeof forumVotes.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+export type ResourcePublishLog = typeof resourcePublishLog.$inferSelect;
+export type NewResourcePublishLog = typeof resourcePublishLog.$inferInsert;
