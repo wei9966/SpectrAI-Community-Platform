@@ -34,6 +34,10 @@ export const users = pgTable("users", {
   githubId: varchar("github_id", { length: 50 }).unique(),
   bio: text("bio"),
   role: userRoleEnum("role").default("user").notNull(),
+  displayName: varchar("display_name", { length: 100 }),
+  claudeopsUuid: varchar("claudeops_uuid", { length: 36 }).unique(),
+  claudeopsPlan: varchar("claudeops_plan", { length: 20 }),
+  claudeopsLinkedAt: timestamp("claudeops_linked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
