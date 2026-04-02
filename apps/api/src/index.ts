@@ -14,6 +14,8 @@ import uploadRoutes from "./routes/uploads.js";
 import rankingRoutes from "./routes/rankings.js";
 import forumRoutes from "./routes/forum.js";
 import notificationRoutes from "./routes/notifications.js";
+import publishRoutes from "./routes/publish.js";
+import reviewRoutes from "./routes/review.js";
 
 const app = new Hono();
 
@@ -49,6 +51,7 @@ app.route("/api/uploads", uploadRoutes);
 app.route("/api/rankings", rankingRoutes);
 app.route("/api/forum", forumRoutes);
 app.route("/api/notifications", notificationRoutes);
+app.route("/api/admin/review", reviewRoutes);
 
 // ── 404 fallback ─────────────────────────────────────────────
 app.notFound((c) => {

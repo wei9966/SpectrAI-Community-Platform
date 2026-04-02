@@ -17,6 +17,8 @@ export {
   updateResourceInputSchema,
   authorSchema,
   publicResourceSchema,
+  reviewStatusSchema,
+  sourceAppSchema,
 } from './resource.schema';
 
 // Rating schemas
@@ -50,3 +52,25 @@ export {
   markNotificationReadSchema,
   markAllNotificationsReadSchema,
 } from './notification.schema';
+
+// Publish schemas
+export {
+  publishRequestSchema,
+  publishResponseSchema,
+  desktopResourceSchema,
+} from './publish.schema';
+export type { PublishRequest, PublishResponse, DesktopResource } from './publish.schema';
+
+// Review schemas
+export {
+  reviewStatusSchema,
+  reviewActionSchema,
+  reviewerRoleSchema,
+  resourcePublishLogSchema,
+  reviewDetailSchema,
+  pendingReviewItemSchema,
+  reviewQueueResponseSchema,
+  reviewQueueParamsSchema,
+  approveReviewSchema,
+  rejectReviewSchema,
+} from './review.schema';
