@@ -526,3 +526,46 @@ export const installApi = {
 };
 
 export { fetchApi };
+
+/**
+ * SpectrAI desktop app presence API.
+ * Used by the Community web/CLI to check if a linked SpectrAI desktop app is online.
+ */
+export interface SpectrAIStatus {
+  online: boolean;
+  lastSeen: string | null;
+  version?: string;
+  platform?: string;
+}
+
+export const spectrAIApi = {
+  /**
+   * Report that the SpectrAI desktop app is running (called by the app itself).
+   * Requires auth — the user's JWT is used to identify the linked account.
+   */
+  async sendHeartbeat(
+    version?: string,
+    platform?: string
+  ): Promise<ApiResponse<{ received: boolean }>> {
+    return fetchApi("/spectrAI/heartbeat", {
+      method: "POST",
+      body: JSON.stringify({ version, platform }),
+    });
+  },
+
+  /**
+   * Check if a SpectrAI desktop app is online for a given ClaudeOps user UUID.
+   * Does NOT require auth — used by Community web to verify before sending a deep link.
+   */
+  async getStatus(claudeopsUuid: string): Promise<ApiResponse<SpectrAIStatus>> {
+    return fetchApi(`/spectrAI/status/${encodeURIComponent(claudeopsUuid)}`);
+  },
+
+  /**
+   * Convenience: check status for the currently authenticated user.
+   * Requires auth.
+   */
+  async getMyStatus(): Promise<ApiResponse<SpectrAIStatus>> {
+    return fetchApi("/spectrAI/status");
+  },
+};

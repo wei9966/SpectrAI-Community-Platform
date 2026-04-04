@@ -15,8 +15,9 @@ import rankingRoutes from "./routes/rankings.js";
 import forumRoutes from "./routes/forum.js";
 import notificationRoutes from "./routes/notifications.js";
 import publishRoutes from "./routes/publish.js";
-import reviewRoutes from "./routes/review.js";
+import { reviewRoutes } from "./routes/review.js";
 import authBridgeRoutes from "./routes/auth-bridge.js";
+import spectrAIRoutes from "./routes/spectrAI.js";
 
 const app = new Hono();
 
@@ -59,6 +60,7 @@ app.route("/api/forum", forumRoutes);
 app.route("/api/notifications", notificationRoutes);
 app.route("/api/admin/review", reviewRoutes);
 app.route("/api/resources", publishRoutes);
+app.route("/api/spectrAI", spectrAIRoutes);
 
 // ── 404 fallback ─────────────────────────────────────────────
 app.notFound((c) => {
