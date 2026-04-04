@@ -22,6 +22,9 @@ const envSchema = z.object({
     .string()
     .default("false")
     .transform((v) => v === "true"),
+  CLAUDEOPS_API_BASE_URL: z
+    .string()
+    .default("https://claudeops.wbdao.cn/api"),
 });
 
 export type Env = z.infer<typeof envSchema>;

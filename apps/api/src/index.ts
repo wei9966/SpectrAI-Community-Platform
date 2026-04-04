@@ -16,6 +16,7 @@ import forumRoutes from "./routes/forum.js";
 import notificationRoutes from "./routes/notifications.js";
 import publishRoutes from "./routes/publish.js";
 import reviewRoutes from "./routes/review.js";
+import authBridgeRoutes from "./routes/auth-bridge.js";
 
 const app = new Hono();
 
@@ -41,6 +42,7 @@ app.get("/api/health", (c) => {
 
 // ── Routes ───────────────────────────────────────────────────
 app.route("/api/auth", authRoutes);
+app.route("/api/auth", authBridgeRoutes);
 app.route("/api/resources", resourceRoutes);
 app.route("/api/resources", ratingRoutes);
 app.route("/api/resources", favoriteRoutes);

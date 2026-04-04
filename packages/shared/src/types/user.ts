@@ -29,6 +29,10 @@ export interface User {
   githubId: string | null;
   bio: string | null;
   role: UserRole;
+  displayName: string | null;
+  claudeopsUuid: string | null;
+  claudeopsPlan: string | null;
+  claudeopsLinkedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

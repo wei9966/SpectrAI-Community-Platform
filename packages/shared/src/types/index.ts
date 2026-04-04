@@ -33,3 +33,6 @@ export * from './review';
 
 // Install manifest
 export * from './install-manifest';
+
+// ClaudeOps integration types
+export * from './claudeops';
