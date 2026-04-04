@@ -10,8 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ImageUpload } from '@/components/image-upload';
 import { Badge } from '@/components/ui/badge';
-import { mockResources } from '@/lib/mock-data';
 import type { PublicResource } from '@spectrai-community/shared';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 interface FormData {
   title: string;
@@ -38,16 +39,35 @@ export default function NewShowcasePage() {
   });
   const [tagInput, setTagInput] = React.useState('');
   const [errors, setErrors] = React.useState<Partial<Record<keyof FormData, string>>>({});
+  const [availableResources, setAvailableResources] = React.useState<PublicResource[]>([]);
+  const [resourcesLoading, setResourcesLoading] = React.useState(true);
 
   // 检查认证状态
   React.useEffect(() => {
     const token = localStorage.getItem('auth_token');
     if (!token) {
-      // TODO: 重定向到登录页
       setIsAuthenticated(false);
     } else {
       setIsAuthenticated(true);
     }
+  }, []);
+
+  // 从 API 获取可关联的资源列表
+  React.useEffect(() => {
+    async function fetchResources() {
+      try {
+        const res = await fetch(`${API_BASE}/api/resources?limit=100`);
+        if (res.ok) {
+          const json = await res.json();
+          setAvailableResources(json.data?.items || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch resources:', err);
+      } finally {
+        setResourcesLoading(false);
+      }
+    }
+    fetchResources();
   }, []);
 
   const validateForm = (): boolean => {
@@ -125,13 +145,42 @@ export default function NewShowcasePage() {
     setIsSubmitting(true);
 
     try {
-      // TODO: API 对接后调用 POST /api/projects
-      console.log('Submitting project:', formData);
+      const token = localStorage.getItem('auth_token');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      // 模拟提交
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const res = await fetch(`${API_BASE}/api/projects`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description || undefined,
+          coverImage: formData.coverImageUrl || undefined,
+          demoUrl: formData.demoUrl || undefined,
+          sourceUrl: formData.sourceUrl || undefined,
+          tags: formData.tags.length > 0 ? formData.tags : undefined,
+          status: 'published',
+        }),
+      });
 
-      // 提交成功后跳转
+      if (!res.ok) throw new Error('Failed to create project');
+
+      const json = await res.json();
+      const projectId = json.data?.id;
+
+      // 关联选中的资源
+      if (projectId && formData.resourceIds.length > 0) {
+        await Promise.allSettled(
+          formData.resourceIds.map((resourceId) =>
+            fetch(`${API_BASE}/api/projects/${projectId}/resources`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ resourceId }),
+            })
+          )
+        );
+      }
+
       router.push('/showcase');
     } catch (error) {
       console.error('Failed to submit:', error);
@@ -140,9 +189,6 @@ export default function NewShowcasePage() {
       setIsSubmitting(false);
     }
   };
-
-  // 模拟可关联的资源列表
-  const availableResources = mockResources;
 
   if (!isAuthenticated) {
     return (
@@ -331,6 +377,14 @@ export default function NewShowcasePage() {
               选择与该项目关联的 SpectrAI 资源（可选）
             </p>
             <div className="space-y-3">
+              {resourcesLoading ? (
+                <div className="flex items-center justify-center py-8 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  加载资源列表...
+                </div>
+              ) : availableResources.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">暂无可关联的资源</p>
+              ) : null}
               {availableResources.map((resource) => {
                 const isSelected = formData.resourceIds.includes(resource.id);
                 return (

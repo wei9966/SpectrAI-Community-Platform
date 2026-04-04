@@ -498,7 +498,9 @@ export default function UserProfilePage() {
                   <div className="text-sm text-muted-foreground">平均评分</div>
                   <div className="flex items-center gap-1">
                     <span className="text-xl font-bold">
-                      {(stats?.averageRating ?? 0).toFixed(1)}
+                      {(stats?.ratingCount ?? 0) > 0
+                        ? (stats?.averageRating ?? 0).toFixed(1)
+                        : '-'}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       ({stats?.ratingCount ?? 0}人)
@@ -511,7 +513,11 @@ export default function UserProfilePage() {
             {/* Star rating display */}
             <div className="mt-4 pt-4 border-t border-border flex items-center gap-2">
               <span className="text-sm text-muted-foreground">综合评分：</span>
-              <StarRating value={stats?.averageRating ?? 0} size="sm" readOnly />
+              <StarRating
+                value={(stats?.ratingCount ?? 0) > 0 ? (stats?.averageRating ?? 0) : 0}
+                size="sm"
+                readOnly
+              />
             </div>
           </CardContent>
         </Card>

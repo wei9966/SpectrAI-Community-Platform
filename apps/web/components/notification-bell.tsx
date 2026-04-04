@@ -43,26 +43,43 @@ export function NotificationBell({ className }: NotificationBellProps) {
   const [notifications, setNotifications] = React.useState<NotificationWithSender[]>([]);
   const [unreadCount, setUnreadCount] = React.useState(0);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [fetchError, setFetchError] = React.useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
+  const consecutiveFailures = React.useRef(0);
 
   // 检查登录状态
   const isLoggedIn = typeof window !== 'undefined' && !!localStorage.getItem('auth_token');
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
-  // 获取通知
+  // 获取通知（支持 abort 以避免组件卸载后的残留请求）
+  const abortRef = React.useRef<AbortController | null>(null);
+
   const fetchNotifications = React.useCallback(async () => {
     if (!isLoggedIn) return;
+
+    // 取消上一次未完成的请求
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     setIsLoading(true);
     try {
       const token = localStorage.getItem('auth_token');
       const res = await fetch(`${API_BASE}/api/notifications?limit=5`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
+      if (!res.ok) {
+        consecutiveFailures.current += 1;
+        setFetchError(consecutiveFailures.current >= 3);
+        return;
+      }
       const data = await res.json();
       if (data.success) {
+        consecutiveFailures.current = 0;
+        setFetchError(false);
         const items = (data.data?.items || []).map((n: any) => ({
           id: n.id,
           userId: n.userId,
@@ -80,6 +97,9 @@ export function NotificationBell({ className }: NotificationBellProps) {
         setUnreadCount(data.data?.unreadCount ?? items.filter((n: any) => !n.isRead).length);
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      consecutiveFailures.current += 1;
+      setFetchError(consecutiveFailures.current >= 3);
       console.error('Failed to fetch notifications:', error);
     } finally {
       setIsLoading(false);
@@ -97,6 +117,7 @@ export function NotificationBell({ className }: NotificationBellProps) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
+      abortRef.current?.abort();
     };
   }, [isLoggedIn, fetchNotifications]);
 
@@ -232,6 +253,11 @@ export function NotificationBell({ className }: NotificationBellProps) {
 
           {/* 通知列表 */}
           <div className="max-h-[320px] overflow-y-auto">
+            {fetchError && (
+              <div className="p-2 text-center text-xs text-destructive bg-destructive/10">
+                通知加载失败，将稍后重试
+              </div>
+            )}
             {notifications.length > 0 ? (
               notifications.map((notification) => (
                 <Link

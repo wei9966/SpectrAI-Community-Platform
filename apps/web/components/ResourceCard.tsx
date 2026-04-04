@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { StarRating } from "@/components/star-rating";
 import { FavoriteButton } from "@/components/favorite-button";
-import { getResourceTypeLabel, getResourceTypeVariant } from "@/lib/mock-data";
+import { getResourceTypeLabel, getResourceTypeVariant } from "@/lib/resource-utils";
 import type { PublicResource } from "@spectrai-community/shared";
 
 interface ResourceCardProps {
@@ -96,18 +96,18 @@ export function ResourceCard({
         <div className="flex items-center justify-between w-full">
           {/* 作者信息 */}
           <Link
-            href={`/user/${resource.author.username}`}
+            href={`/user/${resource.author?.username || 'unknown'}`}
             className="flex items-center gap-2 group/author"
           >
-            {resource.author.avatarUrl && (
+            {resource.author?.avatarUrl && (
               <img
                 src={resource.author.avatarUrl}
-                alt={resource.author.username}
+                alt={resource.author?.username || 'unknown'}
                 className="w-6 h-6 rounded-full"
               />
             )}
             <span className="text-xs text-muted-foreground group-hover/author:text-primary transition-colors">
-              {resource.author.username}
+              {resource.author?.username || '未知用户'}
             </span>
           </Link>
 

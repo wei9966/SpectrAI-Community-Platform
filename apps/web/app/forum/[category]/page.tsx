@@ -50,6 +50,7 @@ export default function CategoryPage() {
   const [total, setTotal] = React.useState(0);
   const [categoryName, setCategoryName] = React.useState('');
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const itemsPerPage = 10;
 
   React.useEffect(() => {
@@ -67,7 +68,12 @@ export default function CategoryPage() {
       `${API_BASE}/api/forum/categories/${categorySlug}/posts?page=${currentPage}&limit=${itemsPerPage}&sort=${sortBy}`,
       { headers }
     )
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
         if (data.success) {
           setPosts(data.data.items || []);
@@ -76,9 +82,23 @@ export default function CategoryPage() {
             setTotal(pg.total);
             setTotalPages(pg.totalPages);
           }
+          setError(null);
+        } else {
+          setError(data.error || '加载帖子失败');
+          setPosts([]);
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('Failed to fetch posts:', err);
+        // Show more specific error message based on error type
+        const errorMsg = err.message.includes('HTTP 404') 
+          ? '该分类不存在' 
+          : err.message.includes('HTTP')
+          ? '无法加载帖子列表'
+          : '网络错误，请稍后重试';
+        setError(errorMsg);
+        setPosts([]);
+      })
       .finally(() => setLoading(false));
 
     // Also fetch category name
@@ -113,6 +133,28 @@ export default function CategoryPage() {
             </div>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container py-8 md:py-12">
+        <Link
+          href="/forum"
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          返回论坛
+        </Link>
+        <Card className="py-12">
+          <CardContent className="text-center">
+            <p className="text-destructive mb-4">{error}</p>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              刷新重试
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

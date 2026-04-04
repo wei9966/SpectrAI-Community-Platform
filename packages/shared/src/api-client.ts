@@ -1,6 +1,7 @@
 import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, AuthResponse, SearchParams, PaginationInfo } from './types/api';
 import type { Resource, PublicResource, CreateResourceInput, UpdateResourceInput, ResourceType } from './types/resource';
 import type { User, PublicUser, UpdateUserInput } from './types/user';
+import type { ReviewQueueParams, ReviewQueueResponse, ReviewDetail } from './types/review';
 
 // API base URL - use environment variable or default to localhost
 // NEXT_PUBLIC_API_URL points to the API server root (e.g. http://host:3101),
@@ -451,6 +452,47 @@ export const notificationsApi = {
 
   async delete(id: string): Promise<ApiResponse<{ message: string }>> {
     return fetchApi(`/notifications/${id}`, { method: 'DELETE' });
+  },
+};
+
+/**
+ * Review API client — admin review queue management.
+ */
+export const reviewApi = {
+  /**
+   * Get pending review queue (admin/moderator only).
+   */
+  async listPending(params?: ReviewQueueParams): Promise<PaginatedResponse<ReviewQueueResponse>> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set('page', String(params.page));
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.sortBy) searchParams.set('sortBy', params.sortBy);
+    if (params?.sortOrder) searchParams.set('sortOrder', params.sortOrder);
+    return fetchApi(`/admin/review/pending?${searchParams}`) as any;
+  },
+
+  /**
+   * Get review detail by resource ID.
+   */
+  async getDetail(id: string): Promise<ApiResponse<ReviewDetail>> {
+    return fetchApi<ReviewDetail>(`/admin/review/${id}`);
+  },
+
+  /**
+   * Approve a resource.
+   */
+  async approve(id: string): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi(`/admin/review/${id}/approve`, { method: 'POST' });
+  },
+
+  /**
+   * Reject a resource with a note.
+   */
+  async reject(id: string, note: string): Promise<ApiResponse<{ message: string }>> {
+    return fetchApi(`/admin/review/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    });
   },
 };
 

@@ -27,3 +27,9 @@ export * from './user-enhanced';
 
 // Ranking types
 export * from './ranking';
+
+// Review types
+export * from './review';
+
+// Install manifest
+export * from './install-manifest';

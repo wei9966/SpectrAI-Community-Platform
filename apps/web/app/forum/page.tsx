@@ -246,19 +246,19 @@ export default function ForumPage() {
                 recentPosts.map((post) => (
                   <div key={post.id} className="flex gap-3">
                     <Link
-                      href={`/user/${post.author.username}`}
+                      href={`/user/${post.author?.username || 'unknown'}`}
                       className="flex-shrink-0"
                     >
-                      {post.author.avatarUrl ? (
+                      {post.author?.avatarUrl ? (
                         <img
                           src={post.author.avatarUrl}
-                          alt={post.author.username}
+                          alt={post.author?.username || 'unknown'}
                           className="w-8 h-8 rounded-full"
                         />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
                           <span className="text-white text-xs font-bold">
-                            {post.author.username.charAt(0).toUpperCase()}
+                            {(post.author?.username || 'U').charAt(0).toUpperCase()}
                           </span>
                         </div>
                       )}
@@ -272,10 +272,10 @@ export default function ForumPage() {
                       </Link>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                         <Link
-                          href={`/forum/${post.category.slug}`}
+                          href={`/forum/${post.category?.slug || 'general'}`}
                           className="hover:text-foreground"
                         >
-                          {post.category.name}
+                          {post.category?.name || '未知分类'}
                         </Link>
                         <span>·</span>
                         <span>{post.replyCount} 回复</span>

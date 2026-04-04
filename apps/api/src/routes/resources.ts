@@ -7,7 +7,6 @@ import {
   and,
   sql,
   ilike,
-  or,
   count,
 } from "drizzle-orm";
 import { db } from "../db/index.js";
@@ -62,11 +61,9 @@ resourceRoutes.get("/", optionalAuthMiddleware, async (c) => {
     conditions.push(eq(resources.type, type));
   }
   if (q) {
+    // 使用 coalesce 处理 NULL 值，确保搜索健壮
     conditions.push(
-      or(
-        ilike(resources.name, `%${q}%`),
-        ilike(resources.description, `%${q}%`)
-      )!
+      sql`(${resources.name} ILIKE ${`%${q}%`} OR ${resources.description} ILIKE ${`%${q}%`})`
     );
   }
   const where = and(...conditions);
@@ -248,6 +245,7 @@ resourceRoutes.post(
       .values({
         ...body,
         authorId: userId,
+        isPublished: true, // 发布时立即设置为已发布
       })
       .returning();
 

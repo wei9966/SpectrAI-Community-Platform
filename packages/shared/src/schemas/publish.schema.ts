@@ -50,10 +50,8 @@ const desktopWorkflowSchema = z.object({
     edges: z.array(z.unknown()).optional(),
     triggers: z.array(z.unknown()).optional(),
     variables: z.array(z.unknown()).optional(),
-    [key: z.string()]: z.unknown().optional(),
   }).optional(),
-  [key: z.string()]: z.unknown().optional(),
-});
+}).catchall(z.unknown().optional());
 
 // Desktop team schema
 const desktopTeamSchema = z.object({
@@ -65,8 +63,7 @@ const desktopTeamSchema = z.object({
     systemPrompt: z.string(),
     permissions: z.array(z.string()).optional(),
   })),
-  [key: z.string()]: z.unknown().optional(),
-});
+}).catchall(z.unknown().optional());
 
 // Union of all desktop resource types
 export const desktopResourceSchema = z.discriminatedUnion("type", [

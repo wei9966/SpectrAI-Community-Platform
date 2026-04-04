@@ -183,6 +183,12 @@ export default function ResourceDetailPage() {
 
         if (cancelled) return;
 
+        // Check comments response status
+        const commentsOk = commentsRes.ok;
+        if (!commentsOk) {
+          console.error('Comments API error:', commentsRes.status, commentsRes.statusText);
+        }
+
         // Handle resource – API may return { success, data } or raw object
         const resData: ResourceData = resourceJson.data ?? resourceJson;
         setResource(resData);
@@ -192,13 +198,15 @@ export default function ResourceDetailPage() {
         setAverageRating(parseFloat(String(resData.averageRating)) || 0);
         setRatingCount(resData.ratingCount ?? 0);
 
-        // Handle comments
-        if (commentsJson.success && commentsJson.data?.items) {
-          setComments(commentsJson.data.items);
-        } else if (Array.isArray(commentsJson.data)) {
-          setComments(commentsJson.data);
-        } else if (Array.isArray(commentsJson)) {
-          setComments(commentsJson);
+        // Handle comments (only if comments API succeeded)
+        if (commentsOk) {
+          if (commentsJson.success && commentsJson.data?.items) {
+            setComments(commentsJson.data.items);
+          } else if (Array.isArray(commentsJson.data)) {
+            setComments(commentsJson.data);
+          } else if (Array.isArray(commentsJson)) {
+            setComments(commentsJson);
+          }
         }
       } catch (err: any) {
         if (!cancelled) {
@@ -301,18 +309,37 @@ export default function ResourceDetailPage() {
     }
   };
 
-  const handleInstallToSpectrAI = () => {
+  const handleInstallToSpectrAI = async () => {
     if (!resource) return;
-    // 尝试 Deep Link
+
+    // 检测是否已安装 SpectrAI 桌面端
+    // 尝试通过 iframe 探测自定义协议是否可用
     const deepLink = `spectrai://install/${resource.type}/${id}`;
-    window.location.href = deepLink;
-    // 设置 2 秒超时，检测是否跳转成功
-    setTimeout(() => {
-      // 如果没有离开页面，显示提示
-      if (!document.hidden) {
-        setShowSpectrAIHint(true);
-      }
-    }, 2000);
+    const downloadUrl = process.env.NEXT_PUBLIC_SPECTRAI_DOWNLOAD_URL || 'https://spectr.ai/download';
+
+    try {
+      // 使用 iframe 尝试触发协议（更优雅的方式）
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = deepLink;
+      document.body.appendChild(iframe);
+
+      // 设置超时检测是否跳转成功
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        // 如果没有离开页面，显示提示
+        if (!document.hidden) {
+          setShowSpectrAIHint(true);
+        }
+      }, 2000);
+
+      // 同时设置 location.href 作为后备
+      window.location.href = deepLink;
+    } catch (err) {
+      // 如果出错（比如协议无效），显示提示
+      console.error('Deep link error:', err);
+      setShowSpectrAIHint(true);
+    }
   };
 
   const handleAddComment = async (content: string) => {
@@ -418,12 +445,37 @@ export default function ResourceDetailPage() {
               <h3 className="text-lg font-semibold">未检测到 SpectrAI 客户端</h3>
             </div>
             <p className="text-muted-foreground mb-6">
-              请先安装 SpectrAI 桌面端，然后再尝试安装此资源。
+              无法直接安装到桌面端。请先下载并安装 SpectrAI 桌面端，然后再尝试安装此资源。
             </p>
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => setShowSpectrAIHint(false)}>
-                知道了
-              </Button>
+            <div className="space-y-3">
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" onClick={() => setShowSpectrAIHint(false)}>
+                  知道了
+                </Button>
+                <Button
+                  variant="gradient"
+                  onClick={() => {
+                    // 使用环境变量配置的下载 URL，默认使用 spectr.ai/download
+                    const downloadUrl = process.env.NEXT_PUBLIC_SPECTRAI_DOWNLOAD_URL || 'https://spectr.ai/download';
+                    window.open(downloadUrl, '_blank');
+                    setShowSpectrAIHint(false);
+                  }}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  下载 SpectrAI 桌面端
+                </Button>
+              </div>
+              {/* 备用下载链接 - 如果主链接失效，用户可以尝试此链接 */}
+              <div className="text-center">
+                <a
+                  href="https://spectr.ai/download"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+                >
+                  如果下载链接失效，请访问 SpectrAI 官网下载页面
+                </a>
+              </div>
             </div>
           </div>
         </div>

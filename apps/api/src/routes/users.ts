@@ -158,10 +158,11 @@ userRoutes.get("/:id/stats", async (c) => {
     .from(resources)
     .where(eq(resources.authorId, id));
 
-  // Average rating across user's resources
+  // Average rating and count across user's resources
   const [ratingStats] = await db
     .select({
       averageRating: avg(resourceRatings.rating),
+      ratingCount: count(resourceRatings.id),
     })
     .from(resourceRatings)
     .innerJoin(resources, eq(resourceRatings.resourceId, resources.id))
@@ -183,6 +184,7 @@ userRoutes.get("/:id/stats", async (c) => {
       totalDownloads: Number(resourceStats.totalDownloads) || 0,
       totalLikes: Number(resourceStats.totalLikes) || 0,
       averageRating: Number(ratingStats.averageRating) || 0,
+      ratingCount: Number(ratingStats.ratingCount) || 0,
       resourceCount,
       daysSinceJoining,
     },
@@ -254,36 +256,44 @@ userRoutes.get("/:id/activity", async (c) => {
         .limit(limit),
     ]);
 
-  // Merge and sort by time
+  // Merge and sort by time — field names match frontend ActivityItem interface
   const activities = [
     ...recentResources.map((r) => ({
+      id: `resource-${r.id}`,
       type: "resource" as const,
-      relatedId: r.id,
       title: r.title,
-      createdAt: r.createdAt,
+      description: "发布了新资源",
+      timestamp: r.createdAt,
+      resourceId: r.id,
     })),
     ...recentComments.map((c) => ({
+      id: `comment-${c.id}`,
       type: "comment" as const,
-      relatedId: c.resourceId,
-      title: c.title.length > 100 ? c.title.slice(0, 100) + "..." : c.title,
-      createdAt: c.createdAt,
+      title: "评论了资源",
+      description: c.title.length > 100 ? c.title.slice(0, 100) + "..." : c.title,
+      timestamp: c.createdAt,
+      resourceId: c.resourceId,
     })),
     ...recentLikes.map((l) => ({
+      id: `like-${l.id}`,
       type: "like" as const,
-      relatedId: l.resourceId,
-      title: l.title,
-      createdAt: l.createdAt,
+      title: `点赞了 ${l.title}`,
+      description: "觉得这个资源很棒",
+      timestamp: l.createdAt,
+      resourceId: l.resourceId,
     })),
     ...recentFavorites.map((f) => ({
+      id: `favorite-${f.id}`,
       type: "favorite" as const,
-      relatedId: f.resourceId,
-      title: f.title,
-      createdAt: f.createdAt,
+      title: `收藏了 ${f.title}`,
+      description: "加入了收藏夹",
+      timestamp: f.createdAt,
+      resourceId: f.resourceId,
     })),
   ]
     .sort(
       (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     )
     .slice(0, limit);
 

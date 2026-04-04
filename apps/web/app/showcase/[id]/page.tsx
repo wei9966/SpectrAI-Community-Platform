@@ -43,6 +43,11 @@ export default function ShowcaseDetailPage() {
   const [isLiked, setIsLiked] = React.useState(false);
   const [localLikes, setLocalLikes] = React.useState(0);
 
+  // 防御式获取 author，避免 author 为 null/undefined 时崩溃
+  const getAuthorUsername = () => project?.author?.username || '未知用户';
+  const getAuthorAvatar = () => project?.author?.avatarUrl || null;
+  const getAuthorId = () => project?.author?.id || null;
+
   React.useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -75,7 +80,10 @@ export default function ShowcaseDetailPage() {
           setError(true);
         }
       })
-      .catch(() => setError(true))
+      .catch((err) => {
+        console.error('Failed to fetch project:', err);
+        setError(true);
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -308,24 +316,24 @@ export default function ShowcaseDetailPage() {
             </CardHeader>
             <CardContent>
               <Link
-                href={`/user/${project.author.username}`}
+                href={`/user/${getAuthorUsername()}`}
                 className="flex items-center gap-3 p-2 -mx-2 rounded-lg hover:bg-secondary/50 transition-colors"
               >
-                {project.author.avatarUrl ? (
+                {getAuthorAvatar() ? (
                   <img
-                    src={project.author.avatarUrl}
-                    alt={project.author.username}
+                    src={getAuthorAvatar()!}
+                    alt={getAuthorUsername()}
                     className="w-12 h-12 rounded-full"
                   />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
                     <span className="text-white text-lg font-bold">
-                      {project.author.username.charAt(0).toUpperCase()}
+                      {getAuthorUsername().charAt(0).toUpperCase()}
                     </span>
                   </div>
                 )}
                 <div>
-                  <p className="font-medium">{project.author.username}</p>
+                  <p className="font-medium">{getAuthorUsername()}</p>
                   <p className="text-xs text-muted-foreground">点击查看主页</p>
                 </div>
               </Link>

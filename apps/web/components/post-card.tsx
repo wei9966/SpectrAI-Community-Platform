@@ -105,23 +105,23 @@ export function PostCard({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground mb-2">
               {/* 作者 */}
               <Link
-                href={`/user/${post.author.username}`}
+                href={`/user/${post.author?.username || 'unknown'}`}
                 className="flex items-center gap-1.5 hover:text-foreground"
               >
-                {post.author.avatarUrl ? (
+                {post.author?.avatarUrl ? (
                   <img
                     src={post.author.avatarUrl}
-                    alt={post.author.username}
+                    alt={post.author.username || 'unknown'}
                     className="w-5 h-5 rounded-full"
                   />
                 ) : (
                   <div className="w-5 h-5 rounded-full bg-gradient-primary flex items-center justify-center">
                     <span className="text-white text-xs font-bold">
-                      {post.author.username.charAt(0).toUpperCase()}
+                      {(post.author?.username || 'U').charAt(0).toUpperCase()}
                     </span>
                   </div>
                 )}
-                <span>{post.author.username}</span>
+                <span>{post.author?.username || '未知用户'}</span>
               </Link>
 
               {/* 时间 */}

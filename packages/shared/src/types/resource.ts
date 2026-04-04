@@ -8,6 +8,18 @@ export enum ResourceType {
   MCP = 'mcp',
 }
 
+// Re-export ReviewStatus from review module for use in this file
+import { ReviewStatus } from './review';
+export { ReviewStatus };
+
+/**
+ * Source app enumeration - identifies which application created the resource
+ */
+export enum SourceApp {
+  COMMUNITY = 'community',
+  CLAUDEOPS = 'claudeops',
+}
+
 /**
  * Resource content base - all resource types have this structure
  */
@@ -89,6 +101,8 @@ export interface Resource {
   likes: number;
   tags?: string[] | null;
   version: string;
+  reviewStatus: ReviewStatus;
+  sourceApp: SourceApp;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -112,6 +126,8 @@ export interface PublicResource {
   likes: number;
   tags?: string[] | null;
   version: string;
+  reviewStatus: ReviewStatus;
+  sourceApp: SourceApp;
   createdAt: Date;
   updatedAt: Date;
 }

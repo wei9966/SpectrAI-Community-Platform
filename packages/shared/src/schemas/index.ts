@@ -17,7 +17,6 @@ export {
   updateResourceInputSchema,
   authorSchema,
   publicResourceSchema,
-  reviewStatusSchema,
   sourceAppSchema,
 } from './resource.schema';
 

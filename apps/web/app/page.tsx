@@ -90,24 +90,24 @@ export default function HomePage() {
 
   const forumEntries = [
     {
-      label: '综合讨论',
-      description: '关于 SpectrAI 的任何话题都可以在这里讨论',
+      label: '技术讨论',
+      description: '分享和讨论 AI Agent、工作流和技术方案',
       icon: MessageSquare,
-      href: '/forum/general',
+      href: '/forum/tech-discussion',
       gradient: 'from-blue-500 to-cyan-500',
     },
     {
       label: '功能建议',
-      description: '对 SpectrAI 的功能建议和需求反馈',
+      description: '提出新功能建议和改进想法',
       icon: Lightbulb,
       href: '/forum/feature-requests',
       gradient: 'from-amber-500 to-orange-500',
     },
     {
-      label: '问题求助',
-      description: '遇到问题？在这里寻求社区帮助',
+      label: 'Bug 报告',
+      description: '报告平台 Bug 和资源使用问题',
       icon: HelpCircle,
-      href: '/forum/help',
+      href: '/forum/bug-reports',
       gradient: 'from-green-500 to-emerald-500',
     },
   ];

@@ -92,6 +92,49 @@ const resourceTypeMeta: Record<ResourceType, {
   },
 };
 
+// 重置表单状态的辅助函数
+const getInitialCommonFields = () => ({
+  name: "",
+  description: "",
+  version: "1.0.0",
+  tags: "",
+});
+
+const getInitialMcpFields = () => ({
+  command: "",
+  args: [""] as string[],
+  envKey: "",
+  envValue: "",
+  envDescription: "",
+  envRequired: false,
+  envVars: [] as Array<{ key: string; value: string; description: string; required: boolean }>,
+  installCommand: "",
+});
+
+const getInitialWorkflowFields = () => ({
+  steps: [] as WorkflowStep[],
+  newStepName: "",
+  newStepType: "prompt",
+  newStepConfig: "{}",
+});
+
+const getInitialSkillFields = () => ({
+  command: "",
+  promptTemplate: "",
+  variables: [] as SkillVariable[],
+  newVarName: "",
+  newVarType: "string",
+  newVarDefault: "",
+});
+
+const getInitialTeamFields = () => ({
+  roles: [] as TeamRole[],
+  newRoleName: "",
+  newRoleDescription: "",
+  newRoleProvider: "claude",
+  newRoleSystemPrompt: "",
+});
+
 export default function PublishPage() {
   const router = useRouter();
   const [selectedType, setSelectedType] = React.useState<ResourceType>(ResourceTypeEnum.MCP);
@@ -100,54 +143,40 @@ export default function PublishPage() {
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   // 通用字段
-  const [commonFields, setCommonFields] = React.useState({
-    name: "",
-    description: "",
-    version: "1.0.0",
-    tags: "",
-  });
+  const [commonFields, setCommonFields] = React.useState(getInitialCommonFields());
 
   // MCP 专属字段
-  const [mcpFields, setMcpFields] = React.useState({
-    command: "",
-    args: [""] as string[],
-    envKey: "",
-    envValue: "",
-    envDescription: "",
-    envRequired: false,
-    envVars: [] as Array<{ key: string; value: string; description: string; required: boolean }>,
-    installCommand: "",
-  });
+  const [mcpFields, setMcpFields] = React.useState(getInitialMcpFields());
 
   // Workflow 专属字段
-  const [workflowFields, setWorkflowFields] = React.useState({
-    steps: [] as WorkflowStep[],
-    newStepName: "",
-    newStepType: "prompt",
-    newStepConfig: "{}",
-  });
+  const [workflowFields, setWorkflowFields] = React.useState(getInitialWorkflowFields());
 
   // Skill 专属字段
-  const [skillFields, setSkillFields] = React.useState({
-    command: "",
-    promptTemplate: "",
-    variables: [] as SkillVariable[],
-    newVarName: "",
-    newVarType: "string",
-    newVarDefault: "",
-  });
+  const [skillFields, setSkillFields] = React.useState(getInitialSkillFields());
 
   // Team 专属字段
-  const [teamFields, setTeamFields] = React.useState({
-    roles: [] as TeamRole[],
-    newRoleName: "",
-    newRoleDescription: "",
-    newRoleProvider: "claude",
-    newRoleSystemPrompt: "",
-  });
+  const [teamFields, setTeamFields] = React.useState(getInitialTeamFields());
 
   // 高级模式 JSON
   const [jsonContent, setJsonContent] = React.useState("");
+
+  // 切换类型时重置表单
+  const handleTypeChange = (type: ResourceType) => {
+    if (type !== selectedType) {
+      setSelectedType(type);
+      // 重置通用字段
+      setCommonFields(getInitialCommonFields());
+      // 重置高级模式 JSON
+      setJsonContent("");
+      // 重置错误
+      setErrors({});
+      // 重置所有类型专属字段
+      setMcpFields(getInitialMcpFields());
+      setWorkflowFields(getInitialWorkflowFields());
+      setSkillFields(getInitialSkillFields());
+      setTeamFields(getInitialTeamFields());
+    }
+  };
 
   // 生成 ID
   const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -488,7 +517,7 @@ export default function PublishPage() {
             return (
               <button
                 key={type}
-                onClick={() => setSelectedType(type as ResourceType)}
+                onClick={() => handleTypeChange(type as ResourceType)}
                 className={cn(
                   "relative p-6 rounded-xl border-2 text-left transition-all duration-200",
                   "hover:shadow-lg hover:scale-[1.02]",
@@ -589,13 +618,19 @@ export default function PublishPage() {
                     {React.createElement(resourceTypeMeta[selectedType].icon, {
                       className: "w-5 h-5",
                     })}
-                    {resourceTypeMeta[selectedType].label} 配置
+                    {resourceTypeMeta[selectedType].label}
                   </h3>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setAdvancedMode(!advancedMode)}
+                    onClick={() => {
+                      if (!advancedMode && !jsonContent) {
+                        // 切换到高级模式时，如果 jsonContent 为空，用当前表单数据初始化
+                        setJsonContent(getJsonPreview());
+                      }
+                      setAdvancedMode(!advancedMode);
+                    }}
                   >
                     {advancedMode ? (
                       <>
@@ -621,12 +656,16 @@ export default function PublishPage() {
                       placeholder="输入 JSON 格式的配置内容"
                       className="min-h-[300px] font-mono text-sm"
                     />
-                    <p className="text-sm text-muted-foreground mt-2">
-                      预览：
-                    </p>
-                    <pre className="bg-secondary/50 rounded-md p-4 overflow-x-auto text-sm font-mono max-h-[200px] mt-2">
-                      <code>{getJsonPreview()}</code>
-                    </pre>
+                    {jsonContent && (
+                      <>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          预览：
+                        </p>
+                        <pre className="bg-secondary/50 rounded-md p-4 overflow-x-auto text-sm font-mono max-h-[200px] mt-2">
+                          <code>{jsonContent}</code>
+                        </pre>
+                      </>
+                    )}
                   </div>
                 ) : (
                   /* 结构化模式 - 类型专属表单 */

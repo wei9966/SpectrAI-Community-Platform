@@ -3,11 +3,17 @@ import { workflowContentSchema } from './workflow.schema';
 import { skillContentSchema } from './skill.schema';
 import { teamContentSchema } from './team.schema';
 import { mcpContentSchema } from './mcp.schema';
+import { reviewStatusSchema } from './review.schema';
 
 /**
  * Resource type enum schema - matches ResourceType enum in types/resource.ts
  */
 export const resourceTypeSchema = z.enum(['workflow', 'team', 'skill', 'mcp']);
+
+/**
+ * Source app enum schema - identifies which application created the resource
+ */
+export const sourceAppSchema = z.enum(['community', 'claudeops']).default('community');
 
 /**
  * Resource creation input schema
@@ -21,6 +27,8 @@ export const createResourceInputSchema = z.object({
   tags: z.array(z.string()).nullable().optional().default([]),
   version: z.string().default('1.0.0'),
   isPublished: z.boolean().default(false),
+  reviewStatus: reviewStatusSchema.optional(),
+  sourceApp: sourceAppSchema.optional(),
 });
 
 /**
@@ -33,6 +41,8 @@ export const updateResourceInputSchema = z.object({
   tags: z.array(z.string()).nullable().optional(),
   version: z.string().optional(),
   isPublished: z.boolean().optional(),
+  reviewStatus: reviewStatusSchema.optional(),
+  sourceApp: sourceAppSchema.optional(),
 });
 
 /**
@@ -60,6 +70,8 @@ export const publicResourceSchema = z.object({
   likes: z.number().default(0),
   tags: z.array(z.string()).nullable().default([]),
   version: z.string(),
+  reviewStatus: reviewStatusSchema,
+  sourceApp: sourceAppSchema,
   createdAt: z.string().or(z.date()),
   updatedAt: z.string().or(z.date()),
 });
