@@ -21,6 +21,8 @@ import spectrAIRoutes from "./routes/spectrAI.js";
 import { adminUserRoutes } from "./routes/admin/users.js";
 import { adminStatsRoutes } from "./routes/admin/stats.js";
 import { adminResourceRoutes } from "./routes/admin/resources.js";
+import { adminForumRoutes } from "./routes/admin/forum.js";
+import { adminSettingsRoutes } from "./routes/admin/settings.js";
 
 const app = new Hono();
 
@@ -65,6 +67,8 @@ app.route("/api/admin/review", reviewRoutes);
 app.route("/api/admin/users", adminUserRoutes);
 app.route("/api/admin/stats", adminStatsRoutes);
 app.route("/api/admin/resources", adminResourceRoutes);
+app.route("/api/admin/forum", adminForumRoutes);
+app.route("/api/admin/settings", adminSettingsRoutes);
 app.route("/api/resources", publishRoutes);
 app.route("/api/spectrAI", spectrAIRoutes);
 

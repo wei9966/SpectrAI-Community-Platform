@@ -295,6 +295,148 @@ export interface ReviewQueueResponse {
   totalPages: number;
 }
 
+// ── Forum Management ─────────────────────────────────────────
+
+export interface AdminForumPost {
+  id: string;
+  title: string;
+  categoryId: string;
+  categoryName: string | null;
+  userId: string;
+  username: string | null;
+  avatarUrl: string | null;
+  isPinned: boolean;
+  isLocked: boolean;
+  viewCount: number;
+  replyCount: number;
+  voteScore: number;
+  tags: string[] | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ForumPostsListResponse {
+  items: AdminForumPost[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+export interface AdminForumCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  sortOrder: number;
+  createdAt: string;
+  postCount: number;
+}
+
+export const adminForumApi = {
+  listPosts(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    categoryId?: string;
+    isPinned?: string;
+    isLocked?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  }) {
+    const qs = new URLSearchParams();
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined && v !== "") qs.set(k, String(v));
+      }
+    }
+    return adminFetch<ForumPostsListResponse>(`/admin/forum/posts?${qs}`);
+  },
+
+  togglePin(id: string, pinned: boolean) {
+    return adminFetch<{ message: string }>(`/admin/forum/posts/${id}/pin`, {
+      method: "PUT",
+      body: JSON.stringify({ pinned }),
+    });
+  },
+
+  toggleLock(id: string, locked: boolean) {
+    return adminFetch<{ message: string }>(`/admin/forum/posts/${id}/lock`, {
+      method: "PUT",
+      body: JSON.stringify({ locked }),
+    });
+  },
+
+  deletePost(id: string) {
+    return adminFetch<{ message: string }>(`/admin/forum/posts/${id}`, {
+      method: "DELETE",
+    });
+  },
+
+  listCategories() {
+    return adminFetch<AdminForumCategory[]>("/admin/forum/categories");
+  },
+
+  createCategory(data: {
+    name: string;
+    slug: string;
+    description?: string;
+    icon?: string;
+    sortOrder?: number;
+  }) {
+    return adminFetch<AdminForumCategory>("/admin/forum/categories", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateCategory(
+    id: string,
+    data: {
+      name?: string;
+      slug?: string;
+      description?: string;
+      icon?: string;
+      sortOrder?: number;
+    }
+  ) {
+    return adminFetch<AdminForumCategory>(`/admin/forum/categories/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteCategory(id: string) {
+    return adminFetch<{ message: string }>(`/admin/forum/categories/${id}`, {
+      method: "DELETE",
+    });
+  },
+};
+
+// ── System Settings ──────────────────────────────────────────
+
+export interface SystemSetting {
+  id: string;
+  key: string;
+  value: string;
+  description: string | null;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export const adminSettingsApi = {
+  getAll() {
+    return adminFetch<SystemSetting[]>("/admin/settings");
+  },
+
+  update(settings: Record<string, string>) {
+    return adminFetch<SystemSetting[]>("/admin/settings", {
+      method: "PUT",
+      body: JSON.stringify({ settings }),
+    });
+  },
+};
+
+// ── Review ────────────────────────────────────────────────────
+
 export const adminReviewApi = {
   pending(params?: { page?: number; limit?: number }) {
     const qs = new URLSearchParams();

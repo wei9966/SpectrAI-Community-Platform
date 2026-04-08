@@ -353,6 +353,20 @@ export const forumVotes = pgTable(
 );
 
 // ============================================================
+// System Settings (key-value store for admin configuration)
+// ============================================================
+export const systemSettings = pgTable("system_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value").notNull().default(""),
+  description: varchar("description", { length: 255 }),
+  updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+// ============================================================
 // Notifications
 // ============================================================
 export const notifications = pgTable("notifications", {
@@ -599,3 +613,5 @@ export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 export type ResourcePublishLog = typeof resourcePublishLog.$inferSelect;
 export type NewResourcePublishLog = typeof resourcePublishLog.$inferInsert;
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type NewSystemSetting = typeof systemSettings.$inferInsert;
