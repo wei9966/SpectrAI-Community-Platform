@@ -40,6 +40,25 @@ function sanitizeUser(user: typeof users.$inferSelect) {
   return safe;
 }
 
+async function proxyClaudeOpsLogin(email: string, password: string) {
+  try {
+    const url = `${getEnv().CLAUDEOPS_API_BASE_URL}/auth/login`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const json = await res.json();
+    if (!json.success) return null;
+    return json.data as {
+      user: { uuid: string; email: string; display_name: string | null; avatar_url: string | null; plan: string | null };
+      tokens: { access_token: string; refresh_token: string; expires_in: number };
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── POST /api/auth/register ─────────────────────────────────
 authRoutes.post("/register", zValidator("json", registerSchema), async (c) => {
   const { username, email, password } = c.req.valid("json");
@@ -85,6 +104,76 @@ authRoutes.post("/register", zValidator("json", registerSchema), async (c) => {
 authRoutes.post("/login", zValidator("json", loginSchema), async (c) => {
   const { email, password } = c.req.valid("json");
 
+  // 1) 先走 ClaudeOps 后端验证
+  const claudeOpsData = await proxyClaudeOpsLogin(email, password);
+  if (claudeOpsData) {
+    const coUser = claudeOpsData.user;
+    const claudeopsUuid = coUser.uuid;
+    const plan = coUser.plan || "free";
+
+    // 查找社区用户：先按 uuid，再按 email
+    let [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.claudeopsUuid, claudeopsUuid))
+      .limit(1);
+
+    if (!user) {
+      [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+    }
+
+    if (user) {
+      // 更新关联信息
+      [user] = await db
+        .update(users)
+        .set({
+          claudeopsUuid,
+          claudeopsPlan: plan,
+          claudeopsLinkedAt: new Date(),
+          displayName: user.displayName || coUser.display_name,
+          avatarUrl: user.avatarUrl || coUser.avatar_url,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, user.id))
+        .returning();
+    } else {
+      // 自动创建社区用户，username 从 email 前缀派生并确保唯一
+      const base = email.split("@")[0].replace(/[^a-zA-Z0-9_-]/g, "_");
+      let username = base;
+      let suffix = 1;
+      while (true) {
+        const [conflict] = await db
+          .select()
+          .from(users)
+          .where(eq(users.username, username))
+          .limit(1);
+        if (!conflict) break;
+        username = `${base}_${suffix++}`;
+      }
+
+      [user] = await db
+        .insert(users)
+        .values({
+          username,
+          email,
+          claudeopsUuid,
+          claudeopsPlan: plan,
+          claudeopsLinkedAt: new Date(),
+          displayName: coUser.display_name || null,
+          avatarUrl: coUser.avatar_url || null,
+        })
+        .returning();
+    }
+
+    const token = signToken({ userId: user.id, username: user.username, role: user.role });
+    return c.json({ success: true, data: { user: sanitizeUser(user), token } });
+  }
+
+  // 2) Fallback: 本地社区 DB 验证
   const [user] = await db
     .select()
     .from(users)
@@ -92,20 +181,15 @@ authRoutes.post("/login", zValidator("json", loginSchema), async (c) => {
     .limit(1);
 
   if (!user || !user.passwordHash) {
-    return c.json({ success: false, error: "Invalid email or password" }, 401);
+    return c.json({ success: false, error: "邮箱或密码错误" }, 401);
   }
 
   const valid = await compare(password, user.passwordHash);
   if (!valid) {
-    return c.json({ success: false, error: "Invalid email or password" }, 401);
+    return c.json({ success: false, error: "邮箱或密码错误" }, 401);
   }
 
-  const token = signToken({
-    userId: user.id,
-    username: user.username,
-    role: user.role,
-  });
-
+  const token = signToken({ userId: user.id, username: user.username, role: user.role });
   return c.json({ success: true, data: { user: sanitizeUser(user), token } });
 });
 
