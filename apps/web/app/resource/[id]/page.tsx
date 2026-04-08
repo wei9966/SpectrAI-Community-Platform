@@ -312,32 +312,23 @@ export default function ResourceDetailPage() {
   const handleInstallToSpectrAI = async () => {
     if (!resource) return;
 
-    // 检测是否已安装 SpectrAI 桌面端
-    // 尝试通过 iframe 探测自定义协议是否可用
-    const deepLink = `spectrai://install/${resource.type}/${id}`;
-    const downloadUrl = process.env.NEXT_PUBLIC_SPECTRAI_DOWNLOAD_URL || 'https://spectr.ai/download';
+    const deepLink = `claudeops://install/${resource.type}/${id}`;
 
     try {
-      // 使用 iframe 尝试触发协议（更优雅的方式）
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = deepLink;
-      document.body.appendChild(iframe);
+      // 先通过本地 HTTP 端口检测桌面端是否在运行
+      const probe = await fetch('http://localhost:19210/auth/token', {
+        signal: AbortSignal.timeout(2000),
+      }).catch(() => null);
 
-      // 设置超时检测是否跳转成功
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-        // 如果没有离开页面，显示提示
-        if (!document.hidden) {
-          setShowSpectrAIHint(true);
-        }
-      }, 2000);
+      if (!probe || !probe.ok) {
+        // 桌面端未运行，显示提示
+        setShowSpectrAIHint(true);
+        return;
+      }
 
-      // 同时设置 location.href 作为后备
+      // 桌面端在运行，触发 deep link 安装
       window.location.href = deepLink;
-    } catch (err) {
-      // 如果出错（比如协议无效），显示提示
-      console.error('Deep link error:', err);
+    } catch {
       setShowSpectrAIHint(true);
     }
   };
