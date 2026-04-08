@@ -17,12 +17,17 @@ const linkSchema = z.object({
 });
 
 // ── Helpers ───────────────────────────────────────────────────
+function getClaudeOpsSecret(): string {
+  const env = getEnv();
+  return env.CLAUDEOPS_JWT_SECRET || env.JWT_SECRET;
+}
+
 function signCommunityToken(payload: JwtPayload): string {
   return sign(payload, getEnv().JWT_SECRET, { expiresIn: "7d" });
 }
 
 function decodeClaudeOpsToken(token: string): ClaudeOpsJwtPayload {
-  const payload = verify(token, getEnv().JWT_SECRET, { algorithms: ["HS256"] });
+  const payload = verify(token, getClaudeOpsSecret(), { algorithms: ["HS256"] });
   if (
     typeof payload !== "object" ||
     payload === null ||

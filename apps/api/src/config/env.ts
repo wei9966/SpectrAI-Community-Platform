@@ -22,6 +22,7 @@ const envSchema = z.object({
     .string()
     .default("false")
     .transform((v) => v === "true"),
+  CLAUDEOPS_JWT_SECRET: z.string().default(""),
   CLAUDEOPS_API_BASE_URL: z
     .string()
     .default("https://claudeops.wbdao.cn/api"),

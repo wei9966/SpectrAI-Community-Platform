@@ -13,7 +13,7 @@ export interface JwtPayload {
   role: string;
 }
 
-// ── ClaudeOps JWT payload (HS256, same secret) ────────────────
+// ── ClaudeOps JWT payload (HS256) ─────────────────────────────
 export interface ClaudeOpsJwtPayload {
   iss: string;
   iat: number;
@@ -28,6 +28,26 @@ export interface ClaudeOpsJwtPayload {
 declare module "hono" {
   interface ContextVariableMap {
     user: JwtPayload;
+  }
+}
+
+function getClaudeOpsSecret(): string {
+  const env = getEnv();
+  return env.CLAUDEOPS_JWT_SECRET || env.JWT_SECRET;
+}
+
+/**
+ * Verify token: try community secret first, then ClaudeOps secret.
+ */
+function verifyToken(token: string): unknown {
+  try {
+    return verify(token, getEnv().JWT_SECRET, { algorithms: ["HS256"] });
+  } catch {
+    const claudeOpsSecret = getClaudeOpsSecret();
+    if (claudeOpsSecret !== getEnv().JWT_SECRET) {
+      return verify(token, claudeOpsSecret, { algorithms: ["HS256"] });
+    }
+    throw new Error("Invalid token");
   }
 }
 
@@ -77,7 +97,7 @@ export async function authMiddleware(c: Context, next: Next) {
 
   const token = authHeader.slice(7);
   try {
-    const raw = verify(token, getEnv().JWT_SECRET, { algorithms: ["HS256"] });
+    const raw = verifyToken(token);
 
     if (isClaudeOpsToken(raw)) {
       const communityUser = await resolveClaudeOpsUser(raw);
@@ -109,7 +129,7 @@ export async function optionalAuthMiddleware(c: Context, next: Next) {
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
     try {
-      const raw = verify(token, getEnv().JWT_SECRET, { algorithms: ["HS256"] });
+      const raw = verifyToken(token);
 
       if (isClaudeOpsToken(raw)) {
         const communityUser = await resolveClaudeOpsUser(raw);
