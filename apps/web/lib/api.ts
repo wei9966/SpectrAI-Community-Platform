@@ -32,7 +32,8 @@ export type {
 } from '@spectrai-community/shared';
 
 // API 基础 URL 配置（用于服务端组件）
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const _apiRaw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+export const API_BASE_URL = _apiRaw.endsWith('/api') ? _apiRaw : `${_apiRaw.replace(/\/+$/, '')}/api`;
 
 // 封装 api 对象（用于向后兼容）
 export const api = {
