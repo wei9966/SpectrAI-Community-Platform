@@ -20,7 +20,7 @@ import {
   reviewQueueResponseSchema,
   approveReviewSchema,
   rejectReviewSchema,
-} from "../../shared/src/schemas/review.schema.js";
+} from "@spectrai-community/shared";
 
 // Validate UUID format helper
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
