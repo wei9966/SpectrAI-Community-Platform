@@ -30,6 +30,8 @@ import {
   Pencil,
   FolderOpen,
   Hash,
+  AlertCircle,
+  X,
 } from "lucide-react";
 
 // ── Tab type ─────────────────────────────────────────────────
@@ -170,6 +172,7 @@ export default function AdminForumPage() {
   const [posts, setPosts] = React.useState<AdminForumPost[]>([]);
   const [pagination, setPagination] = React.useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [postsLoading, setPostsLoading] = React.useState(true);
+  const [postsError, setPostsError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [categoryFilter, setCategoryFilter] = React.useState("");
   const [page, setPage] = React.useState(1);
@@ -177,6 +180,7 @@ export default function AdminForumPage() {
   // Categories state
   const [categories, setCategories] = React.useState<AdminForumCategory[]>([]);
   const [categoriesLoading, setCategoriesLoading] = React.useState(true);
+  const [categoriesError, setCategoriesError] = React.useState<string | null>(null);
 
   // Dialogs
   const [deleteDialog, setDeleteDialog] = React.useState<{ id: string; title: string } | null>(null);
@@ -197,6 +201,7 @@ export default function AdminForumPage() {
 
   const fetchPosts = React.useCallback(async () => {
     setPostsLoading(true);
+    setPostsError(null);
     try {
       const data = await adminForumApi.listPosts({
         page,
@@ -206,17 +211,24 @@ export default function AdminForumPage() {
       });
       setPosts(data.items);
       setPagination(data.pagination);
-    } catch { /* auth guard handles */ }
-    finally { setPostsLoading(false); }
+    } catch (e: any) {
+      console.error("Failed to load posts:", e);
+      setPostsError(e?.message || "加载帖子列表失败");
+      setPosts([]);
+    } finally { setPostsLoading(false); }
   }, [page, search, categoryFilter]);
 
   const fetchCategories = React.useCallback(async () => {
     setCategoriesLoading(true);
+    setCategoriesError(null);
     try {
       const data = await adminForumApi.listCategories();
       setCategories(data);
-    } catch { /* auth guard handles */ }
-    finally { setCategoriesLoading(false); }
+    } catch (e: any) {
+      console.error("Failed to load categories:", e);
+      setCategoriesError(e?.message || "加载分类列表失败");
+      setCategories([]);
+    } finally { setCategoriesLoading(false); }
   }, []);
 
   React.useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -382,6 +394,16 @@ export default function AdminForumPage() {
               ))}
             </select>
           </div>
+
+          {postsError && (
+            <div className="p-4 rounded-lg bg-destructive/10 text-destructive flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <span className="flex-1">{postsError}</span>
+              <button className="p-1 hover:bg-destructive/20 rounded" onClick={() => { setPostsError(null); fetchPosts(); }}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
           {/* Posts table */}
           <Card>

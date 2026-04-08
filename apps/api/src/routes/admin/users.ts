@@ -8,10 +8,12 @@ import {
   count,
   ilike,
   and,
+  or,
   sql,
   sum,
   avg,
   isNotNull,
+  inArray,
 } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import {
@@ -58,7 +60,10 @@ adminUserRoutes.get(
     const conditions = [];
     if (search) {
       conditions.push(
-        sql`(${ilike(users.username, `%${search}%`)} OR ${ilike(users.email, `%${search}%`)})`
+        or(
+          ilike(users.username, `%${search}%`),
+          ilike(users.email, `%${search}%`)
+        )
       );
     }
     if (role) {
@@ -111,9 +116,7 @@ adminUserRoutes.get(
               total: count(),
             })
             .from(resources)
-            .where(
-              sql`${resources.authorId} = ANY(${userIds})`
-            )
+            .where(inArray(resources.authorId, userIds))
             .groupBy(resources.authorId)
         : [];
     const resourceCountMap = new Map(

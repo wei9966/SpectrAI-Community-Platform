@@ -151,7 +151,8 @@ export default function AdminDashboard() {
         setTrends(trend);
         setDist(distData);
       } catch (e: any) {
-        setError(e.message || "加载失败");
+        console.error("Dashboard load error:", e);
+        setError(e?.message || "数据加载失败，请检查网络连接或联系管理员");
       } finally {
         setLoading(false);
       }

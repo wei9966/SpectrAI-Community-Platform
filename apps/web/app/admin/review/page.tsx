@@ -48,7 +48,8 @@ export default function AdminReviewPage() {
       setItems(data.items);
       setPagination({ page: data.page, limit: data.limit, total: data.total, totalPages: data.totalPages });
     } catch (e: any) {
-      setError(e.message || "加载失败");
+      console.error("Failed to load review queue:", e);
+      setError(e?.message || "加载审核队列失败，请检查网络连接或联系管理员");
     } finally {
       setLoading(false);
     }
@@ -66,7 +67,8 @@ export default function AdminReviewPage() {
       setItems((prev) => prev.filter((i) => i.id !== id));
       setPagination((p) => ({ ...p, total: p.total - 1 }));
     } catch (e: any) {
-      setError(e.message || "操作失败");
+      console.error("Failed to approve:", e);
+      setError(e?.message || "操作失败");
     } finally {
       setProcessing(null);
     }
@@ -86,7 +88,8 @@ export default function AdminReviewPage() {
       setRejectingId(null);
       setRejectNote("");
     } catch (e: any) {
-      setError(e.message || "操作失败");
+      console.error("Failed to reject:", e);
+      setError(e?.message || "操作失败，请重试");
     } finally {
       setProcessing(null);
     }

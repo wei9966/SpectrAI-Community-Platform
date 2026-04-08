@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { StarRating } from '@/components/star-rating';
 import { cn } from '@/lib/utils';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_BASE } from '@/lib/api-base';
 
 // 排行榜条目类型
 interface RankingItem {

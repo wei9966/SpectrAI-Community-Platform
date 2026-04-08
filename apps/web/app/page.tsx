@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ResourceCard } from "@/components/ResourceCard";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_BASE } from '@/lib/api-base';
 
 interface ShowcaseProject {
   id: string;

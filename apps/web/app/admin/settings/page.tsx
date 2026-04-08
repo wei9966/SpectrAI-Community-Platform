@@ -58,6 +58,20 @@ const BOOLEAN_KEYS = new Set([
   "forum_enabled",
 ]);
 
+// Fallback labels for settings when description is missing in DB
+const SETTING_LABELS: Record<string, string> = {
+  site_name: "站点名称",
+  site_description: "站点描述",
+  maintenance_mode: "维护模式",
+  registration_enabled: "开放注册",
+  default_user_role: "默认用户角色",
+  require_email_verification: "邮箱验证",
+  resource_auto_approve: "自动审核资源",
+  max_upload_size_mb: "最大上传大小（MB）",
+  forum_enabled: "启用论坛",
+  posts_per_page: "每页帖子数",
+};
+
 const ROLE_OPTIONS = ["user", "moderator"];
 
 export default function AdminSettingsPage() {
@@ -131,7 +145,7 @@ export default function AdminSettingsPage() {
   const renderField = (key: string) => {
     const setting = getSettingByKey(key);
     const val = values[key] ?? "";
-    const desc = setting?.description ?? key;
+    const desc = setting?.description ?? SETTING_LABELS[key] ?? key;
 
     if (BOOLEAN_KEYS.has(key)) {
       return (

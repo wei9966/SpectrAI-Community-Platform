@@ -51,7 +51,7 @@ export function NotificationBell({ className }: NotificationBellProps) {
   // 检查登录状态
   const isLoggedIn = typeof window !== 'undefined' && !!localStorage.getItem('auth_token');
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+  const API_BASE = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/api$/, '');
 
   // 获取通知（支持 abort 以避免组件卸载后的残留请求）
   const abortRef = React.useRef<AbortController | null>(null);

@@ -11,7 +11,7 @@ import { VoteButton } from '@/components/vote-button';
 import { ReplyTree } from '@/components/reply-tree';
 import { MarkdownRenderer } from '@/components/markdown-renderer';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_BASE } from '@/lib/api-base';
 
 interface PostData {
   id: string;

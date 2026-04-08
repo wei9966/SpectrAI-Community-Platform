@@ -9,7 +9,7 @@ import { ResourceCard } from "@/components/ResourceCard";
 import { Pagination } from "@/components/Pagination";
 import type { ResourceType, PublicResource } from "@spectrai-community/shared";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+import { API_BASE } from '@/lib/api-base';
 
 function MarketContent() {
   const router = useRouter();

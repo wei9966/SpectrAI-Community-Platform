@@ -11,7 +11,7 @@ import { CommentSection } from "@/components/CommentSection";
 import { StarRating } from "@/components/star-rating";
 import { FavoriteButton } from "@/components/favorite-button";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_BASE } from '@/lib/api-base';
 
 // Inline type label/variant maps (replaces mock-data helpers)
 const typeLabels: Record<string, string> = {

@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { ResourceCard } from '@/components/ResourceCard';
 import type { PublicResource } from '@spectrai-community/shared';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_BASE } from '@/lib/api-base';
 
 // 项目类型
 interface ShowcaseProject {

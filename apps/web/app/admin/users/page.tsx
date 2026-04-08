@@ -24,6 +24,7 @@ import {
   Heart,
   MessageSquare,
   X,
+  AlertCircle,
 } from "lucide-react";
 
 const roleColors: Record<string, string> = {
@@ -143,6 +144,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = React.useState<AdminUser[]>([]);
   const [pagination, setPagination] = React.useState({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState("");
   const [page, setPage] = React.useState(1);
@@ -158,6 +160,7 @@ export default function AdminUsersPage() {
 
   const fetchUsers = React.useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await adminUsersApi.list({
         page,
@@ -167,8 +170,10 @@ export default function AdminUsersPage() {
       });
       setUsers(data.items);
       setPagination(data.pagination);
-    } catch {
-      // handled by auth guard
+    } catch (e: any) {
+      console.error("Failed to load users:", e);
+      setError(e?.message || "加载用户列表失败");
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -225,6 +230,16 @@ export default function AdminUsersPage() {
           共 {pagination.total} 个用户
         </p>
       </div>
+
+      {error && (
+        <div className="p-4 rounded-lg bg-destructive/10 text-destructive flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button className="p-1 hover:bg-destructive/20 rounded" onClick={() => { setError(null); fetchUsers(); }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">

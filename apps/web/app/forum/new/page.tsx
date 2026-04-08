@@ -25,7 +25,7 @@ interface Category {
   slug: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_BASE } from '@/lib/api-base';
 
 export default function NewPostPage() {
   const router = useRouter();

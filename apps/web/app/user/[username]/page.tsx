@@ -68,7 +68,7 @@ interface PaginatedResources {
 // API helpers
 // ---------------------------------------------------------------------------
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+import { API_BASE } from '@/lib/api-base';
 
 function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {

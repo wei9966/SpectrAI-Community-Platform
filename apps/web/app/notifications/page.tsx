@@ -19,7 +19,7 @@ import { Pagination } from '@/components/Pagination';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_BASE } from '@/lib/api-base';
 
 interface NotificationActor {
   username: string;
