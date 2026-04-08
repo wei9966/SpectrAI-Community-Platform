@@ -11,7 +11,7 @@ import {
 
 // Alias for users table when joining twice (author and reviewer)
 const reviewers = users;
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, adminOrModerator } from "../middleware/auth.js";
 import { createNotification } from "../lib/notify.js";
 import {
   reviewQueueParamsSchema,
@@ -27,20 +27,13 @@ const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 
 const reviewRoutes = new Hono();
 
-// Admin/Moderator permission middleware
-async function adminModeratorMiddleware(c: Parameters<typeof authMiddleware>[0], next: Parameters<typeof authMiddleware>[1]) {
-  const user = c.get("user");
-  if (!user || (user.role !== "admin" && user.role !== "moderator")) {
-    return c.json({ success: false, error: "Admin or moderator access required" }, 403);
-  }
-  await next();
-}
+// All review routes require auth + admin/moderator role
+reviewRoutes.use("*", authMiddleware, adminOrModerator);
 
 // ── GET /api/admin/review/pending ────────────────────────────────
 // Get pending review queue (admin/moderator only)
 reviewRoutes.get(
   "/pending",
-  adminModeratorMiddleware,
   zValidator("query", reviewQueueParamsSchema),
   async (c) => {
     const { page, limit, sortBy, sortOrder } = c.req.valid("query");
@@ -116,7 +109,6 @@ reviewRoutes.get(
 // Get review detail by ID
 reviewRoutes.get(
   "/:id",
-  adminModeratorMiddleware,
   async (c) => {
     const resourceId = c.req.param("id");
 
@@ -220,7 +212,6 @@ reviewRoutes.get(
 // Approve a resource
 reviewRoutes.post(
   "/:id/approve",
-  adminModeratorMiddleware,
   zValidator("json", approveReviewSchema),
   async (c) => {
     const resourceId = c.req.param("id");
@@ -290,7 +281,6 @@ reviewRoutes.post(
 // Reject a resource
 reviewRoutes.post(
   "/:id/reject",
-  adminModeratorMiddleware,
   zValidator("json", rejectReviewSchema),
   async (c) => {
     const resourceId = c.req.param("id");

@@ -18,6 +18,9 @@ import publishRoutes from "./routes/publish.js";
 import { reviewRoutes } from "./routes/review.js";
 import authBridgeRoutes from "./routes/auth-bridge.js";
 import spectrAIRoutes from "./routes/spectrAI.js";
+import { adminUserRoutes } from "./routes/admin/users.js";
+import { adminStatsRoutes } from "./routes/admin/stats.js";
+import { adminResourceRoutes } from "./routes/admin/resources.js";
 
 const app = new Hono();
 
@@ -59,6 +62,9 @@ app.route("/api/rankings", rankingRoutes);
 app.route("/api/forum", forumRoutes);
 app.route("/api/notifications", notificationRoutes);
 app.route("/api/admin/review", reviewRoutes);
+app.route("/api/admin/users", adminUserRoutes);
+app.route("/api/admin/stats", adminStatsRoutes);
+app.route("/api/admin/resources", adminResourceRoutes);
 app.route("/api/resources", publishRoutes);
 app.route("/api/spectrAI", spectrAIRoutes);
 

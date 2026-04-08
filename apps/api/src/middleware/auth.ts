@@ -145,3 +145,25 @@ export async function optionalAuthMiddleware(c: Context, next: Next) {
   }
   await next();
 }
+
+/**
+ * Admin-only middleware. Must be used after authMiddleware.
+ */
+export async function adminOnly(c: Context, next: Next) {
+  const user = c.get("user");
+  if (!user || user.role !== "admin") {
+    return c.json({ success: false, error: "Admin access required" }, 403);
+  }
+  await next();
+}
+
+/**
+ * Admin or moderator middleware. Must be used after authMiddleware.
+ */
+export async function adminOrModerator(c: Context, next: Next) {
+  const user = c.get("user");
+  if (!user || !["admin", "moderator"].includes(user.role)) {
+    return c.json({ success: false, error: "Admin or moderator access required" }, 403);
+  }
+  await next();
+}
