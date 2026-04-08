@@ -359,16 +359,45 @@ resourceRoutes.post(
     const body = c.req.valid("json");
     const { userId } = c.get("user");
 
+    // 同一作者 + 同名 + 同类型 → 更新而非重复创建
+    const [existing] = await db
+      .select()
+      .from(resources)
+      .where(
+        and(
+          eq(resources.authorId, userId),
+          eq(resources.name, body.name),
+          eq(resources.type, body.type)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      const [updated] = await db
+        .update(resources)
+        .set({
+          description: body.description ?? existing.description,
+          content: body.content ?? existing.content,
+          tags: body.tags ?? existing.tags,
+          version: body.version ?? existing.version,
+          isPublished: true,
+          sourceApp: body.sourceApp || existing.sourceApp,
+          updatedAt: new Date(),
+        })
+        .where(eq(resources.id, existing.id))
+        .returning();
+      return c.json({ success: true, data: updated }, 200);
+    }
+
     const [resource] = await db
       .insert(resources)
       .values({
         ...body,
         authorId: userId,
-        isPublished: true, // 发布时立即设置为已发布
+        isPublished: true,
         sourceApp: body.sourceApp || "web",
       })
       .returning();
-
     return c.json({ success: true, data: resource }, 201);
   }
 );
