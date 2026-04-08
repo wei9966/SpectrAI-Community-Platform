@@ -39,7 +39,13 @@ export interface WorkflowContent extends ResourceContentBase {
     id: string;
     name: string;
     type: string;
-    config: Record<string, unknown>;
+    config: {
+      providerId?: string;
+      promptTemplate?: string;
+      dependsOn?: string[];
+      timeout?: number;
+      [key: string]: unknown;
+    };
   }>;
   triggers?: Array<{
     type: string;
@@ -59,7 +65,11 @@ export interface TeamContent extends ResourceContentBase {
   roles: Array<{
     id: string;
     name: string;
+    displayName?: string;
     description: string;
+    systemPrompt?: string;
+    providerId?: string;
+    color?: string;
     permissions: string[];
   }>;
 }

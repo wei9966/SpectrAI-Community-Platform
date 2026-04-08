@@ -261,20 +261,35 @@ function adaptContentForDesktop(type: string, content: Record<string, unknown>):
       };
     }
     case 'workflow': {
-      // 桌面端期望 orchestrationConfig: { steps, mergeStrategy }
-      // 社区格式是 { steps: [{id,name,type,config}], triggers, variables }
+      // 桌面端期望 orchestrationConfig: { steps: OrchestrationStep[], mergeStrategy }
       const steps = (content.steps as Array<Record<string, unknown>>) || [];
       return {
         ...content,
         orchestrationConfig: {
-          steps: steps.map((s) => ({
-            id: s.id,
-            name: s.name,
-            type: s.type,
-            config: s.config || {},
+          steps: steps.map((s: any) => ({
+            name: String(s.name || ''),
+            providerId: String(s.config?.providerId || 'claude-code'),
+            promptTemplate: String(s.config?.promptTemplate || ''),
+            dependsOn: s.config?.dependsOn || undefined,
+            timeout: s.config?.timeout || undefined,
           })),
-          mergeStrategy: 'concatenate',
+          mergeStrategy: String((content as any).mergeStrategy || 'concatenate'),
         },
+      };
+    }
+    case 'team': {
+      // 桌面端期望 roles: [{ roleName, displayName, systemPrompt, providerId, color, sortOrder }]
+      const roles = (content.roles as Array<Record<string, unknown>>) || [];
+      return {
+        ...content,
+        roles: roles.map((r: any, i: number) => ({
+          roleName: String(r.name || r.roleName || ''),
+          displayName: String(r.displayName || r.name || ''),
+          systemPrompt: String(r.systemPrompt || r.description || ''),
+          providerId: String(r.providerId || 'claude-code'),
+          color: String(r.color || '#6366f1'),
+          sortOrder: Number(r.sortOrder ?? i),
+        })),
       };
     }
     default:
