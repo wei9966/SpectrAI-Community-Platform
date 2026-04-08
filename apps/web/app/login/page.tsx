@@ -3,12 +3,12 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Github, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/api";
+import { api, API_BASE_URL } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,6 +18,7 @@ export default function LoginPage() {
   });
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isSpectrAILoading, setIsSpectrAILoading] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
   const validateForm = () => {
@@ -64,20 +65,42 @@ export default function LoginPage() {
     }
   };
 
-  const handleGithubLogin = () => {
-    // GitHub OAuth 登录 - 实际应用中需要重定向到 OAuth 授权页面
-    const githubAuthUrl = process.env.NEXT_PUBLIC_GITHUB_AUTH_URL;
-    if (githubAuthUrl) {
-      window.location.href = githubAuthUrl;
-    } else {
-      setErrors({ submit: "GitHub 登录配置未完成" });
-    }
-  };
+  const handleSpectrAILogin = async () => {
+    setIsSpectrAILoading(true);
+    setErrors({});
 
-  const handleSpectrAILogin = () => {
-    // SpectrAI OAuth 登录 - 占位实现
-    setToastMessage("SpectrAI OAuth 登录功能即将上线");
-    setTimeout(() => setToastMessage(null), 3000);
+    try {
+      // 1) 从本地桌面端获取 token
+      const localRes = await fetch('http://localhost:19210/auth/token', {
+        signal: AbortSignal.timeout(3000),
+      });
+      const localData = await localRes.json();
+
+      if (!localData.success || !localData.data?.token) {
+        setErrors({ submit: 'SpectrAI 桌面端未登录，请先在桌面端登录账号' });
+        return;
+      }
+
+      // 2) 用 ClaudeOps token 换社区 token
+      const bridgeRes = await fetch(`${API_BASE_URL}/auth/claudeops/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: localData.data.token }),
+      });
+      const bridgeData = await bridgeRes.json();
+
+      if (bridgeData.success && bridgeData.data?.token) {
+        localStorage.setItem('auth_token', bridgeData.data.token);
+        router.push('/');
+      } else {
+        setErrors({ submit: bridgeData.error || '账号关联失败' });
+      }
+    } catch (err) {
+      // fetch 失败 = 桌面端未运行
+      setErrors({ submit: '未检测到 SpectrAI 桌面端，请确保已启动并登录' });
+    } finally {
+      setIsSpectrAILoading(false);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,30 +117,20 @@ export default function LoginPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">登录</CardTitle>
           <CardDescription className="text-center">
-            登录你的账户以继续
+            使用 SpectrAI 账号登录社区
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* GitHub 登录按钮 */}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleGithubLogin}
-          >
-            <Github className="w-4 h-4 mr-2" />
-            使用 GitHub 账户登录
-          </Button>
-
-          {/* SpectrAI 登录按钮 */}
+          {/* SpectrAI 一键登录按钮 */}
           <Button
             type="button"
             variant="gradient"
             className="w-full"
             onClick={handleSpectrAILogin}
+            disabled={isSpectrAILoading}
           >
             <Sparkles className="w-4 h-4 mr-2" />
-            使用 SpectrAI 账号登录
+            {isSpectrAILoading ? '连接中...' : '使用 SpectrAI 账号登录'}
           </Button>
 
           <div className="relative">
@@ -126,7 +139,7 @@ export default function LoginPage() {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">
-                或者使用邮箱
+                或使用 SpectrAI 邮箱密码
               </span>
             </div>
           </div>
