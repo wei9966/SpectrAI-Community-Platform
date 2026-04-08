@@ -18,7 +18,7 @@ export function Header() {
   React.useEffect(() => {
     const token = localStorage.getItem('auth_token');
     setIsLoggedIn(!!token);
-  }, []);
+  }, [pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
