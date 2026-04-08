@@ -236,6 +236,52 @@ resourceRoutes.get("/:id", optionalAuthMiddleware, async (c) => {
   return c.json({ success: true, data: resource });
 });
 
+// ── Desktop content adapter ────────────────────────────────
+/**
+ * Adapt community content format to desktop-expected format for installation.
+ */
+function adaptContentForDesktop(type: string, content: Record<string, unknown>): Record<string, unknown> {
+  switch (type) {
+    case 'skill': {
+      // 桌面端期望 systemPromptAddition 独立字段
+      // 社区格式合并在 promptTemplate 里，提取 system prompt 部分
+      const pt = String(content.promptTemplate || '');
+      const systemPattern = /^(You are|System:|\[System\]|## System|## Role).*\n+/i;
+      const match = pt.match(systemPattern);
+      return {
+        ...content,
+        systemPromptAddition: match ? match[0].trim() : '',
+        promptTemplate: match ? pt.slice(match[0].length).trim() : pt,
+      };
+    }
+    case 'mcp': {
+      return {
+        ...content,
+        installCommand: content.installCommand || '',
+      };
+    }
+    case 'workflow': {
+      // 桌面端期望 orchestrationConfig: { steps, mergeStrategy }
+      // 社区格式是 { steps: [{id,name,type,config}], triggers, variables }
+      const steps = (content.steps as Array<Record<string, unknown>>) || [];
+      return {
+        ...content,
+        orchestrationConfig: {
+          steps: steps.map((s) => ({
+            id: s.id,
+            name: s.name,
+            type: s.type,
+            config: s.config || {},
+          })),
+          mergeStrategy: 'concatenate',
+        },
+      };
+    }
+    default:
+      return content;
+  }
+}
+
 // ── GET /api/resources/:id/install-manifest ────────────────
 resourceRoutes.get("/:id/install-manifest", optionalAuthMiddleware, async (c) => {
   const id = c.req.param("id")!;
@@ -279,7 +325,7 @@ resourceRoutes.get("/:id/install-manifest", optionalAuthMiddleware, async (c) =>
       type: resource.type,
       name: resource.name,
       version: resource.version,
-      content: resource.content,
+      content: adaptContentForDesktop(resource.type, resource.content as Record<string, unknown>),
       author: resource.author,
       dependencies,
       installUrl,
