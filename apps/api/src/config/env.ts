@@ -3,6 +3,10 @@ import { z } from "zod";
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().default("redis://localhost:6379"),
+  CDK_REDIS_PREFIX: z.string().default("cdk:"),
+  CREDIT_MAX_DAILY_CAP: z.coerce.number().default(200),
+  CREDITS_PER_DOLLAR: z.coerce.number().default(1000),
+  MARKUP_MULTIPLIER: z.coerce.number().default(1),
   JWT_SECRET: z.string().min(1),
   GITHUB_CLIENT_ID: z.string().default(""),
   GITHUB_CLIENT_SECRET: z.string().default(""),
