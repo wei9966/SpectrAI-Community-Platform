@@ -22,6 +22,7 @@ import {
   generateInstallUrl,
   computeContentChecksum,
 } from "../lib/deep-link.js";
+import { awardCredits } from "../lib/credit-service.js";
 
 const resourceRoutes = new Hono();
 
@@ -232,6 +233,10 @@ resourceRoutes.get("/:id", optionalAuthMiddleware, async (c) => {
     .update(resources)
     .set({ downloads: sql`${resources.downloads} + 1` })
     .where(eq(resources.id, id));
+
+  if (resource.author?.id) {
+    void awardCredits(resource.author.id, "resource_downloaded", id, "resource").catch(() => {});
+  }
 
   return c.json({ success: true, data: resource });
 });

@@ -17,13 +17,12 @@ import {
   resourcePublishLog,
 } from "../../db/schema.js";
 import { authMiddleware, adminOrModerator, adminOnly } from "../../middleware/auth.js";
+import { awardCredits } from "../../lib/credit-service.js";
 
 const adminResourceRoutes = new Hono();
 
 // All routes require auth + admin/moderator
 adminResourceRoutes.use("*", authMiddleware, adminOrModerator);
-
-// ── Schemas ───────────────────────────────────────────────────
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -35,7 +34,6 @@ const listQuerySchema = z.object({
   sortOrder: z.enum(["asc", "desc"]).default("desc"),
 });
 
-// ── GET /api/admin/resources ──────────────────────────────────
 adminResourceRoutes.get(
   "/",
   zValidator("query", listQuerySchema),
@@ -111,8 +109,6 @@ adminResourceRoutes.get(
   }
 );
 
-// ── PUT /api/admin/resources/:id/publish ──────────────────────
-// Force publish / unpublish
 const publishSchema = z.object({
   publish: z.boolean(),
 });
@@ -128,6 +124,7 @@ adminResourceRoutes.put(
     const [resource] = await db
       .select({
         id: resources.id,
+        authorId: resources.authorId,
         isPublished: resources.isPublished,
         reviewStatus: resources.reviewStatus,
       })
@@ -161,6 +158,10 @@ adminResourceRoutes.put(
       actorId: user.userId,
     });
 
+    if (publish && previousStatus !== "approved") {
+      void awardCredits(resource.authorId, "resource_published", id, "resource").catch(() => {});
+    }
+
     return c.json({
       success: true,
       message: publish ? "Resource published" : "Resource unpublished",
@@ -168,7 +169,6 @@ adminResourceRoutes.put(
   }
 );
 
-// ── DELETE /api/admin/resources/:id ───────────────────────────
 adminResourceRoutes.delete("/:id", adminOnly, async (c) => {
   const id = c.req.param("id") as string;
 

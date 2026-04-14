@@ -18,6 +18,12 @@ import publishRoutes from "./routes/publish.js";
 import { reviewRoutes } from "./routes/review.js";
 import authBridgeRoutes from "./routes/auth-bridge.js";
 import spectrAIRoutes from "./routes/spectrAI.js";
+import creditRoutes from "./routes/credits.js";
+import tokenQuotaRoutes from "./routes/token-quota.js";
+import planRoutes from "./routes/plan.js";
+import inviteRoutes from "./routes/invite.js";
+import cdkRoutes from "./routes/cdk.js";
+import bountyRoutes from "./routes/bounties.js";
 import { adminUserRoutes } from "./routes/admin/users.js";
 import { adminStatsRoutes } from "./routes/admin/stats.js";
 import { adminResourceRoutes } from "./routes/admin/resources.js";
@@ -26,18 +32,15 @@ import { adminSettingsRoutes } from "./routes/admin/settings.js";
 
 const app = new Hono();
 
-// ── Global middleware ────────────────────────────────────────
 app.use("*", cors({
   origin: (origin) => {
     const allowed = [
       "http://localhost:3000",
       "http://localhost:5173",
       process.env.NEXT_PUBLIC_APP_URL,
-      process.env.DESKTOP_APP_ORIGIN, // ClaudeOps desktop app origin (e.g. claudeops://localhost)
+      process.env.DESKTOP_APP_ORIGIN,
     ].filter(Boolean);
-    // Allow requests with no origin (desktop apps, curl, etc.) or from allowed origins
     if (!origin || allowed.includes(origin)) return origin;
-    // Also allow requests carrying X-App-Platform: desktop header
     return null;
   },
   credentials: true,
@@ -45,12 +48,10 @@ app.use("*", cors({
 }));
 app.use("*", requestLogger);
 
-// ── Health check ─────────────────────────────────────────────
 app.get("/api/health", (c) => {
   return c.json({ success: true, data: { status: "ok", timestamp: new Date().toISOString() } });
 });
 
-// ── Routes ───────────────────────────────────────────────────
 app.route("/api/auth", authRoutes);
 app.route("/api/auth", authBridgeRoutes);
 app.route("/api/resources", resourceRoutes);
@@ -71,16 +72,19 @@ app.route("/api/admin/forum", adminForumRoutes);
 app.route("/api/admin/settings", adminSettingsRoutes);
 app.route("/api/resources", publishRoutes);
 app.route("/api/spectrAI", spectrAIRoutes);
+app.route("/api/credits", creditRoutes);
+app.route("/api/spectrAI/quota", tokenQuotaRoutes);
+app.route("/api/spectrAI/plan", planRoutes);
+app.route("/api/invite", inviteRoutes);
+app.route("/api/cdk", cdkRoutes);
+app.route("/api/bounties", bountyRoutes);
 
-// ── 404 fallback ─────────────────────────────────────────────
 app.notFound((c) => {
   return c.json({ success: false, error: "Not found" }, 404);
 });
 
-// ── Error handler ────────────────────────────────────────────
 app.onError(errorHandler);
 
-// ── Start server ─────────────────────────────────────────────
 const env = getEnv();
 const port = env.PORT;
 

@@ -14,6 +14,7 @@ import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import { buildReplyTree } from "../lib/reply-tree.js";
 import type { FlatReply } from "../lib/reply-tree.js";
 import { createNotification } from "../lib/notify.js";
+import { awardCredits } from "../lib/credit-service.js";
 
 const forumRoutes = new Hono();
 
@@ -243,6 +244,8 @@ forumRoutes.post(
         tags: body.tags,
       })
       .returning();
+
+    void awardCredits(userId, "post_created", post.id, "post").catch(() => {});
 
     return c.json({ success: true, data: post }, 201);
   }
@@ -513,6 +516,8 @@ forumRoutes.post(
       }
     }
 
+    void awardCredits(userId, "reply_created", reply.id, "reply").catch(() => {});
+
     return c.json({ success: true, data: reply }, 201);
   }
 );
@@ -675,6 +680,10 @@ forumRoutes.post(
         relatedId: postId,
         relatedType: "forum_post",
       });
+
+      if (value === 1) {
+        void awardCredits(postForVote.userId, "received_like", postId, "post").catch(() => {});
+      }
     }
 
     return c.json({ success: true, data: result });
@@ -770,6 +779,10 @@ forumRoutes.post(
         relatedId: replyForVote.postId,
         relatedType: "forum_post",
       });
+
+      if (value === 1) {
+        void awardCredits(replyForVote.userId, "received_like", replyId, "reply").catch(() => {});
+      }
     }
 
     return c.json({ success: true, data: result });
