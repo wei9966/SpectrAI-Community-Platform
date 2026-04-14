@@ -122,6 +122,42 @@ export async function authMiddleware(c: Context, next: Next) {
 }
 
 /**
+ * ClaudeOps access token auth middleware.
+ * Rejects Community-native JWTs and only accepts SpectrAI desktop access tokens.
+ */
+export async function claudeOpsAccessMiddleware(c: Context, next: Next) {
+  const authHeader = c.req.header("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return c.json({ success: false, error: "Authentication required" }, 401);
+  }
+
+  const token = authHeader.slice(7);
+  try {
+    const raw = verifyToken(token);
+
+    if (!isClaudeOpsToken(raw)) {
+      return c.json({ success: false, error: "SpectrAI access token required" }, 401);
+    }
+
+    const communityUser = await resolveClaudeOpsUser(raw);
+    if (!communityUser) {
+      return c.json(
+        {
+          success: false,
+          error: "ClaudeOps account not linked. Please link your account first via POST /api/auth/claudeops/link",
+        },
+        403
+      );
+    }
+
+    c.set("user", communityUser);
+    await next();
+  } catch {
+    return c.json({ success: false, error: "Invalid or expired token" }, 401);
+  }
+}
+
+/**
  * Optional auth middleware — sets user if token present, but does not block.
  */
 export async function optionalAuthMiddleware(c: Context, next: Next) {

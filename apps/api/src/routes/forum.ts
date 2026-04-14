@@ -516,7 +516,9 @@ forumRoutes.post(
       }
     }
 
-    void awardCredits(userId, "reply_created", reply.id, "reply").catch(() => {});
+    if (reply.content.trim().length >= 10) {
+      void awardCredits(userId, "reply_created", reply.id, "reply").catch(() => {});
+    }
 
     return c.json({ success: true, data: reply }, 201);
   }

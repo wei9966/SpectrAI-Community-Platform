@@ -1,23 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import jwt from "jsonwebtoken";
-const { verify } = jwt;
 import { sql } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { authMiddleware } from "../middleware/auth.js";
-import { getEnv } from "../config/env.js";
+import { authMiddleware, claudeOpsAccessMiddleware } from "../middleware/auth.js";
 import { spendCredits } from "../lib/credit-service.js";
 import { calculateCostUsd, SUPPORTED_MODELS } from "../lib/token-pricing.js";
 import { CREDITS_PER_DOLLAR } from "../db/seed-credits.js";
 
 const tokenQuotaRoutes = new Hono();
-
-interface ClaudeOpsAccessPayload {
-  sub: string;
-  type: "access";
-  plan: string;
-}
 
 const exchangeSchema = z.object({
   creditAmount: z.coerce.number().int().min(1),
@@ -46,11 +37,6 @@ function toNumber(value: number | string | null | undefined): number {
     return Number.isNaN(parsed) ? 0 : parsed;
   }
   return 0;
-}
-
-function getClaudeOpsSecret(): string {
-  const env = getEnv();
-  return env.CLAUDEOPS_JWT_SECRET || env.JWT_SECRET;
 }
 
 tokenQuotaRoutes.get("/", authMiddleware, async (c) => {
@@ -141,45 +127,10 @@ tokenQuotaRoutes.post(
 
 tokenQuotaRoutes.post(
   "/consume",
+  claudeOpsAccessMiddleware,
   zValidator("json", consumeSchema),
   async (c) => {
-    const authHeader = c.req.header("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return c.json({ success: false, error: "Authentication required" }, 401);
-    }
-
-    const token = authHeader.slice(7);
-
-    let payload: ClaudeOpsAccessPayload;
-    try {
-      const decoded = verify(token, getClaudeOpsSecret(), { algorithms: ["HS256"] });
-      if (
-        typeof decoded !== "object" ||
-        decoded === null ||
-        (decoded as Record<string, unknown>).type !== "access" ||
-        typeof (decoded as Record<string, unknown>).sub !== "string"
-      ) {
-        return c.json({ success: false, error: "SpectrAI access token required" }, 401);
-      }
-      payload = decoded as unknown as ClaudeOpsAccessPayload;
-    } catch {
-      return c.json({ success: false, error: "Invalid or expired token" }, 401);
-    }
-
-    const userRows = asRows<{ id: string }>(
-      await db.execute(sql`
-        SELECT id
-        FROM users
-        WHERE claudeops_uuid = ${payload.sub}
-        LIMIT 1
-      `)
-    );
-
-    const user = userRows[0];
-
-    if (!user) {
-      return c.json({ success: false, error: "ClaudeOps account not linked" }, 403);
-    }
+    const { userId } = c.get("user");
 
     const body = c.req.valid("json");
 
@@ -200,7 +151,7 @@ tokenQuotaRoutes.post(
       const result = await db.transaction(async (tx) => {
         await tx.execute(sql`
           INSERT INTO token_quotas (user_id)
-          VALUES (${user.id})
+          VALUES (${userId})
           ON CONFLICT (user_id) DO NOTHING
         `);
 
@@ -209,11 +160,11 @@ tokenQuotaRoutes.post(
           lifetime_used: number | string;
         }>(
           await tx.execute(sql`
-            SELECT balance_usd, lifetime_used
-            FROM token_quotas
-            WHERE user_id = ${user.id}
-            FOR UPDATE
-          `)
+          SELECT balance_usd, lifetime_used
+          FROM token_quotas
+          WHERE user_id = ${userId}
+          FOR UPDATE
+        `)
         );
 
         const quota = quotaRows[0];
@@ -231,7 +182,7 @@ tokenQuotaRoutes.post(
             SET balance_usd = balance_usd - ${costUsd},
                 lifetime_used = lifetime_used + ${costUsd},
                 updated_at = now()
-            WHERE user_id = ${user.id}
+            WHERE user_id = ${userId}
             RETURNING balance_usd, lifetime_used
           `)
         );
@@ -246,7 +197,7 @@ tokenQuotaRoutes.post(
             session_id
           )
           VALUES (
-            ${user.id},
+            ${userId},
             ${body.model},
             ${body.tokens_in},
             ${body.tokens_out},

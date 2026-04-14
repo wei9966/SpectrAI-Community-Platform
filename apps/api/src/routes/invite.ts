@@ -5,7 +5,7 @@ import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { authMiddleware } from "../middleware/auth.js";
-import { awardCredits } from "../lib/credit-service.js";
+import { awardCredits, freezeCredits } from "../lib/credit-service.js";
 import { createNotification } from "../lib/notify.js";
 
 const inviteRoutes = new Hono();
@@ -169,7 +169,7 @@ inviteRoutes.post(
           WHERE id = ${String(invite.id)}
         `);
 
-        await awardCredits(
+        const reward = await awardCredits(
           String(invite.inviterId),
           "invite_registered",
           String(invite.id),
@@ -177,6 +177,18 @@ inviteRoutes.post(
           "邀请新用户注册奖励",
           tx
         );
+
+        if (reward) {
+          await freezeCredits(
+            String(invite.inviterId),
+            reward.amount,
+            "invite_registered",
+            String(invite.id),
+            "invite",
+            "邀请注册奖励冻结 7 天",
+            tx
+          );
+        }
 
         return {
           inviteId: String(invite.id),
