@@ -85,13 +85,13 @@ export class SpectrAICreditClient {
   }
 
   async getQuota(): Promise<TokenQuota> {
-    return this.request<TokenQuota>('/api/token-quota');
+    return this.request<TokenQuota>('/api/spectrAI/quota');
   }
 
   async exchangeQuota(creditAmount: number): Promise<TokenQuota> {
     const payload: QuotaExchangePayload = { creditAmount };
     const data = await this.request<TokenQuota & { exchangedCredits?: number }>(
-      '/api/token-quota/exchange',
+      '/api/spectrAI/quota/exchange',
       {
         method: 'POST',
         body: JSON.stringify(payload),
@@ -118,7 +118,7 @@ export class SpectrAICreditClient {
       sessionId,
     };
 
-    await this.request('/api/token-quota/consume', {
+    await this.request('/api/spectrAI/quota/consume', {
       method: 'POST',
       body: JSON.stringify({
         model: payload.model,
@@ -131,11 +131,11 @@ export class SpectrAICreditClient {
 
   async getUsage(days = 30): Promise<TokenUsageSummary> {
     const params = new URLSearchParams({ days: String(days) });
-    return this.request<TokenUsageSummary>(`/api/token-quota/usage?${params.toString()}`);
+    return this.request<TokenUsageSummary>(`/api/spectrAI/quota/usage?${params.toString()}`);
   }
 
   async getModels(): Promise<ModelPricing[]> {
-    const data = await this.request<TokenModelsCatalog>('/api/token-quota/models');
+    const data = await this.request<TokenModelsCatalog>('/api/spectrAI/quota/models');
     return data.models;
   }
 
