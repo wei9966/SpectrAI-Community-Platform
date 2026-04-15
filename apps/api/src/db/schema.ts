@@ -1,4 +1,4 @@
-import {
+﻿import {
   pgTable,
   uuid,
   varchar,
@@ -29,6 +29,26 @@ export const reviewStatusEnum = pgEnum("review_status", [
   "pending",
   "approved",
   "rejected",
+]);
+
+export const promoterLevelEnum = pgEnum("promoter_level", [
+  "bronze",
+  "silver",
+  "gold",
+  "platinum",
+  "diamond",
+]);
+
+export const promoterRewardTypeEnum = pgEnum("promoter_reward_type", [
+  "credits",
+  "membership_days",
+]);
+
+export const promoterRewardStatusEnum = pgEnum("promoter_reward_status", [
+  "pending",
+  "released",
+  "expired",
+  "cancelled",
 ]);
 
 // ============================================================
@@ -392,7 +412,7 @@ export const notifications = pgTable("notifications", {
 // ============================================================
 // Relations
 // ============================================================
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   resources: many(resources),
   comments: many(resourceComments),
   likes: many(resourceLikes),
@@ -404,6 +424,12 @@ export const usersRelations = relations(users, ({ many }) => ({
   forumVotes: many(forumVotes),
   notifications: many(notifications, { relationName: "notificationRecipient" }),
   sentNotifications: many(notifications, { relationName: "notificationSender" }),
+  promoterProfile: one(promoterProfiles, {
+    fields: [users.id],
+    references: [promoterProfiles.userId],
+  }),
+  promoterRewards: many(promoterRewards, { relationName: "promoterRewardPromoter" }),
+  inviteePromoterRewards: many(promoterRewards, { relationName: "promoterRewardInvitee" }),
 }));
 
 export const resourcesRelations = relations(resources, ({ one, many }) => ({
@@ -774,6 +800,56 @@ export const inviteCodes = pgTable("invite_codes", {
     .notNull(),
 });
 
+export const promoterProfiles = pgTable(
+  "promoter_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" })
+      .unique(),
+    level: promoterLevelEnum("level").default("bronze").notNull(),
+    totalInvites: integer("total_invites").default(0).notNull(),
+    totalCreditsEarned: integer("total_credits_earned").default(0).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("idx_promoter_profiles_level").on(table.level)]
+);
+
+export const promoterRewards = pgTable(
+  "promoter_rewards",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    promoterUserId: uuid("promoter_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    inviteeUserId: uuid("invitee_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    inviteCodeId: uuid("invite_code_id").references(() => inviteCodes.id, {
+      onDelete: "set null",
+    }),
+    rewardType: promoterRewardTypeEnum("reward_type").notNull(),
+    amount: integer("amount").notNull(),
+    status: promoterRewardStatusEnum("status").default("pending").notNull(),
+    releaseAt: timestamp("release_at", { withTimezone: true }).notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_promoter_rewards_promoter").on(table.promoterUserId, table.createdAt.desc()),
+    index("idx_promoter_rewards_invitee").on(table.inviteeUserId, table.createdAt.desc()),
+    index("idx_promoter_rewards_status").on(table.status, table.releaseAt),
+  ]
+);
+
 export const cdkProjects = pgTable("cdk_projects", {
   id: uuid("id").defaultRandom().primaryKey(),
   creatorId: uuid("creator_id")
@@ -965,7 +1041,7 @@ export const discountCodesRelations = relations(discountCodes, ({ one }) => ({
   }),
 }));
 
-export const inviteCodesRelations = relations(inviteCodes, ({ one }) => ({
+export const inviteCodesRelations = relations(inviteCodes, ({ one, many }) => ({
   inviter: one(users, {
     fields: [inviteCodes.inviterId],
     references: [users.id],
@@ -975,6 +1051,31 @@ export const inviteCodesRelations = relations(inviteCodes, ({ one }) => ({
     fields: [inviteCodes.inviteeId],
     references: [users.id],
     relationName: "inviteCodeInvitee",
+  }),
+  promoterRewards: many(promoterRewards),
+}));
+
+export const promoterProfilesRelations = relations(promoterProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [promoterProfiles.userId],
+    references: [users.id],
+  }),
+}));
+
+export const promoterRewardsRelations = relations(promoterRewards, ({ one }) => ({
+  promoterUser: one(users, {
+    fields: [promoterRewards.promoterUserId],
+    references: [users.id],
+    relationName: "promoterRewardPromoter",
+  }),
+  inviteeUser: one(users, {
+    fields: [promoterRewards.inviteeUserId],
+    references: [users.id],
+    relationName: "promoterRewardInvitee",
+  }),
+  inviteCode: one(inviteCodes, {
+    fields: [promoterRewards.inviteCodeId],
+    references: [inviteCodes.id],
   }),
 }));
 
@@ -1087,6 +1188,10 @@ export type DiscountCode = typeof discountCodes.$inferSelect;
 export type NewDiscountCode = typeof discountCodes.$inferInsert;
 export type InviteCode = typeof inviteCodes.$inferSelect;
 export type NewInviteCode = typeof inviteCodes.$inferInsert;
+export type PromoterProfile = typeof promoterProfiles.$inferSelect;
+export type NewPromoterProfile = typeof promoterProfiles.$inferInsert;
+export type PromoterReward = typeof promoterRewards.$inferSelect;
+export type NewPromoterReward = typeof promoterRewards.$inferInsert;
 export type CdkProject = typeof cdkProjects.$inferSelect;
 export type NewCdkProject = typeof cdkProjects.$inferInsert;
 export type CdkItem = typeof cdkItems.$inferSelect;
@@ -1103,3 +1208,4 @@ export type UserBadge = typeof userBadges.$inferSelect;
 export type NewUserBadge = typeof userBadges.$inferInsert;
 export type TrustLevel = typeof trustLevels.$inferSelect;
 export type NewTrustLevel = typeof trustLevels.$inferInsert;
+

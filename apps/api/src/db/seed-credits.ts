@@ -1,4 +1,4 @@
-export interface CreditRuleSeed {
+﻿export interface CreditRuleSeed {
   action: string;
   points: number;
   dailyLimit: number | null;
@@ -12,7 +12,7 @@ export const CREDIT_RULE_SEEDS: CreditRuleSeed[] = [
   { action: "login_streak_7", points: 20, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "连续登录 7 天奖励" },
   { action: "post_created", points: 10, dailyLimit: 5, minTrustLevel: 1, isActive: true, description: "发布帖子" },
   { action: "reply_created", points: 3, dailyLimit: 10, minTrustLevel: 1, isActive: true, description: "回复帖子" },
-  { action: "received_like", points: 2, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "被点赞" },
+  { action: "received_like", points: 2, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "收到点赞" },
   { action: "best_answer", points: 20, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "最佳答案" },
   { action: "resource_published", points: 30, dailyLimit: null, minTrustLevel: 2, isActive: true, description: "发布 Resource（审核通过后）" },
   { action: "resource_downloaded", points: 1, dailyLimit: 100, minTrustLevel: 0, isActive: true, description: "Resource 被下载" },
@@ -23,6 +23,11 @@ export const CREDIT_RULE_SEEDS: CreditRuleSeed[] = [
   { action: "github_pr_merged", points: 100, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "PR 合并到 SpectrAI" },
   { action: "bug_report_valid", points: 30, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "有效 Bug Report" },
   { action: "tutorial_published", points: 50, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "撰写教程/文档" },
+  { action: "promoter_invite_bronze", points: 50, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "推广者青铜等级邀请奖励" },
+  { action: "promoter_invite_silver", points: 80, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "推广者白银等级邀请奖励" },
+  { action: "promoter_invite_gold", points: 120, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "推广者黄金等级邀请奖励" },
+  { action: "promoter_invite_platinum", points: 200, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "推广者铂金等级邀请奖励" },
+  { action: "promoter_invite_diamond", points: 300, dailyLimit: null, minTrustLevel: 0, isActive: true, description: "推广者钻石等级邀请奖励" },
 ];
 
 export const CREDITS_PER_DOLLAR = 1000;

@@ -1,4 +1,4 @@
-import { serve } from "@hono/node-server";
+﻿import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { getEnv } from "./config/env.js";
@@ -22,6 +22,7 @@ import creditRoutes from "./routes/credits.js";
 import tokenQuotaRoutes from "./routes/token-quota.js";
 import planRoutes from "./routes/plan.js";
 import inviteRoutes from "./routes/invite.js";
+import promoterRoutes from "./routes/promoter.js";
 import cdkRoutes from "./routes/cdk.js";
 import bountyRoutes from "./routes/bounties.js";
 import { adminUserRoutes } from "./routes/admin/users.js";
@@ -29,23 +30,27 @@ import { adminStatsRoutes } from "./routes/admin/stats.js";
 import { adminResourceRoutes } from "./routes/admin/resources.js";
 import { adminForumRoutes } from "./routes/admin/forum.js";
 import { adminSettingsRoutes } from "./routes/admin/settings.js";
+import adminPromoterRoutes from "./routes/admin/promoter.js";
 
 const app = new Hono();
 
-app.use("*", cors({
-  origin: (origin) => {
-    const allowed = [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      process.env.NEXT_PUBLIC_APP_URL,
-      process.env.DESKTOP_APP_ORIGIN,
-    ].filter(Boolean);
-    if (!origin || allowed.includes(origin)) return origin;
-    return null;
-  },
-  credentials: true,
-  allowHeaders: ["Content-Type", "Authorization", "X-App-Platform", "X-App-Version"],
-}));
+app.use(
+  "*",
+  cors({
+    origin: (origin) => {
+      const allowed = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        process.env.NEXT_PUBLIC_APP_URL,
+        process.env.DESKTOP_APP_ORIGIN,
+      ].filter(Boolean);
+      if (!origin || allowed.includes(origin)) return origin;
+      return null;
+    },
+    credentials: true,
+    allowHeaders: ["Content-Type", "Authorization", "X-App-Platform", "X-App-Version"],
+  })
+);
 app.use("*", requestLogger);
 
 app.get("/api/health", (c) => {
@@ -70,12 +75,14 @@ app.route("/api/admin/stats", adminStatsRoutes);
 app.route("/api/admin/resources", adminResourceRoutes);
 app.route("/api/admin/forum", adminForumRoutes);
 app.route("/api/admin/settings", adminSettingsRoutes);
+app.route("/api/admin/promoter", adminPromoterRoutes);
 app.route("/api/resources", publishRoutes);
 app.route("/api/spectrAI", spectrAIRoutes);
 app.route("/api/credits", creditRoutes);
 app.route("/api/spectrAI/quota", tokenQuotaRoutes);
 app.route("/api/spectrAI/plan", planRoutes);
 app.route("/api/invite", inviteRoutes);
+app.route("/api/promoter", promoterRoutes);
 app.route("/api/cdk", cdkRoutes);
 app.route("/api/bounties", bountyRoutes);
 

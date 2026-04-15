@@ -1,11 +1,15 @@
-import { Hono } from "hono";
+﻿import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { authMiddleware } from "../middleware/auth.js";
-import { awardCredits, freezeCredits } from "../lib/credit-service.js";
+import {
+  getPromoterConfig,
+  grantInviteeWelcome,
+  processPromoterReward,
+} from "../lib/promoter-service.js";
 import { createNotification } from "../lib/notify.js";
 
 const inviteRoutes = new Hono();
@@ -121,6 +125,7 @@ inviteRoutes.post(
   async (c) => {
     const { userId } = c.get("user");
     const { code } = c.req.valid("json");
+    const promoterConfig = await getPromoterConfig();
 
     const existingRows = asRows<{ id: string }>(
       await db.execute(sql`
@@ -163,37 +168,38 @@ inviteRoutes.post(
 
         await tx.execute(sql`
           UPDATE invite_codes
-          SET invitee_id = ${userId},
-              reward_status = 'granted',
-              reward_frozen_until = now() + interval '7 days'
+          SET invitee_id = ${userId}
           WHERE id = ${String(invite.id)}
         `);
 
-        const reward = await awardCredits(
+        const rewardResult = await processPromoterReward(
           String(invite.inviterId),
-          "invite_registered",
+          userId,
           String(invite.id),
-          "invite",
-          "邀请新用户注册奖励",
-          tx
+          tx as { execute: typeof tx.execute }
         );
 
-        if (reward) {
-          await freezeCredits(
-            String(invite.inviterId),
-            reward.amount,
-            "invite_registered",
-            String(invite.id),
-            "invite",
-            "邀请注册奖励冻结 7 天",
-            tx
-          );
-        }
+        await grantInviteeWelcome(
+          userId,
+          String(invite.id),
+          tx as { execute: typeof tx.execute }
+        );
+
+        const rewardFrozenUntil = rewardResult.releaseAt ?? (promoterConfig.enabled ? new Date(Date.now() + promoterConfig.rewardDelayHours * 60 * 60 * 1000) : null);
+        const rewardStatus = rewardResult.rewards.length > 0 ? "pending" : "granted";
+
+        await tx.execute(sql`
+          UPDATE invite_codes
+          SET reward_status = ${rewardStatus},
+              reward_frozen_until = ${rewardFrozenUntil}
+          WHERE id = ${String(invite.id)}
+        `);
 
         return {
           inviteId: String(invite.id),
           inviterId: String(invite.inviterId),
           code: code.toUpperCase(),
+          rewardStatus,
         };
       });
 
@@ -202,7 +208,7 @@ inviteRoutes.post(
         fromUserId: userId,
         toUserId: result.inviterId,
         title: "有新用户通过你的邀请码完成绑定",
-        content: `邀请码 ${result.code} 已绑定成功`,
+        content: `邀请码 ${result.code} 已绑定成功，当前奖励状态：${result.rewardStatus}`,
         relatedId: result.inviteId,
         relatedType: "invite",
       });
