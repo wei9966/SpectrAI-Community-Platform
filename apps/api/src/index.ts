@@ -44,7 +44,7 @@ app.use("*", cors({
     return null;
   },
   credentials: true,
-  allowHeaders: ["Content-Type", "Authorization", "X-App-Platform"],
+  allowHeaders: ["Content-Type", "Authorization", "X-App-Platform", "X-App-Version"],
 }));
 app.use("*", requestLogger);
 
