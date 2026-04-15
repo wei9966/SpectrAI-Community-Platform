@@ -12,6 +12,7 @@ import {
   CheckCircle,
   MessageSquare,
   Settings,
+  Megaphone,
   LogOut,
   ChevronLeft,
   Menu,
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/admin/resources", label: "资源管理", icon: Package },
   { href: "/admin/review", label: "审核队列", icon: CheckCircle },
   { href: "/admin/forum", label: "论坛管理", icon: MessageSquare },
+  { href: "/admin/promoter", label: "推广者管理", icon: Megaphone },
   { href: "/admin/settings", label: "系统设置", icon: Settings },
 ];
 

@@ -274,6 +274,82 @@ export const adminResourcesApi = {
   },
 };
 
+// ── Promoter Management ───────────────────────────────────────
+
+export interface PromoterListItem {
+  userId: string;
+  username: string;
+  level: number;
+  totalInvites: number;
+  totalCredits: number;
+  inviteCode?: string | null;
+  avatarUrl?: string | null;
+  updatedAt?: string;
+}
+
+export interface PromoterListResponse {
+  items: PromoterListItem[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+export interface PromoterRewardHistoryItem {
+  id: string;
+  inviteeUsername: string | null;
+  creditReward: number;
+  vipDaysReward: number;
+  status: string;
+  frozenUntil: string | null;
+  createdAt: string;
+  releasedAt?: string | null;
+}
+
+export interface PromoterDetail extends PromoterListItem {
+  totalVipDays?: number;
+  nextLevel?: {
+    minInvites: number;
+    remaining: number;
+  } | null;
+  rewardInfo?: {
+    creditReward: number;
+    vipDaysReward: number;
+  } | null;
+  rewards: PromoterRewardHistoryItem[];
+}
+
+export const adminPromoterApi = {
+  list(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    level?: number;
+  }) {
+    const qs = new URLSearchParams();
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined && v !== "") qs.set(k, String(v));
+      }
+    }
+    return adminFetch<PromoterListResponse>(`/admin/promoter/list?${qs}`);
+  },
+
+  getByUserId(userId: string) {
+    return adminFetch<PromoterDetail>(`/admin/promoter/${userId}`);
+  },
+
+  updateLevel(userId: string, level: number) {
+    return adminFetch<{ message: string }>(`/admin/promoter/${userId}/level`, {
+      method: "PATCH",
+      body: JSON.stringify({ level }),
+    });
+  },
+
+  releaseRewards() {
+    return adminFetch<{ message: string; releasedCount?: number }>("/admin/promoter/release-rewards", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
+};
 // ── Review ────────────────────────────────────────────────────
 
 export interface ReviewItem {

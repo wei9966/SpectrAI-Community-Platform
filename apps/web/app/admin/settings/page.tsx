@@ -11,11 +11,11 @@ import { Input } from "@/components/ui/input";
 import {
   Loader2,
   Save,
-  Settings,
   Globe,
   UserPlus,
   Shield,
   MessageSquare,
+  Megaphone,
   RotateCcw,
 } from "lucide-react";
 
@@ -48,6 +48,28 @@ const SETTING_GROUPS: SettingGroup[] = [
     icon: <MessageSquare className="h-4 w-4" />,
     keys: ["forum_enabled", "posts_per_page"],
   },
+  {
+    title: "推广者计划",
+    icon: <Megaphone className="h-4 w-4" />,
+    keys: [
+      "promoter_program_enabled",
+      "promoter_l1_min_invites",
+      "promoter_l2_min_invites",
+      "promoter_l3_min_invites",
+      "promoter_l4_min_invites",
+      "promoter_l1_credit_reward",
+      "promoter_l2_credit_reward",
+      "promoter_l3_credit_reward",
+      "promoter_l4_credit_reward",
+      "promoter_l1_day_reward",
+      "promoter_l2_day_reward",
+      "promoter_l3_day_reward",
+      "promoter_l4_day_reward",
+      "promoter_freeze_days",
+      "invitee_welcome_credits",
+      "invitee_welcome_vip_days",
+    ],
+  },
 ];
 
 const BOOLEAN_KEYS = new Set([
@@ -56,6 +78,27 @@ const BOOLEAN_KEYS = new Set([
   "require_email_verification",
   "resource_auto_approve",
   "forum_enabled",
+  "promoter_program_enabled",
+]);
+
+const NUMBER_KEYS = new Set([
+  "max_upload_size_mb",
+  "posts_per_page",
+  "promoter_l1_min_invites",
+  "promoter_l2_min_invites",
+  "promoter_l3_min_invites",
+  "promoter_l4_min_invites",
+  "promoter_l1_credit_reward",
+  "promoter_l2_credit_reward",
+  "promoter_l3_credit_reward",
+  "promoter_l4_credit_reward",
+  "promoter_l1_day_reward",
+  "promoter_l2_day_reward",
+  "promoter_l3_day_reward",
+  "promoter_l4_day_reward",
+  "promoter_freeze_days",
+  "invitee_welcome_credits",
+  "invitee_welcome_vip_days",
 ]);
 
 // Fallback labels for settings when description is missing in DB
@@ -70,6 +113,22 @@ const SETTING_LABELS: Record<string, string> = {
   max_upload_size_mb: "最大上传大小（MB）",
   forum_enabled: "启用论坛",
   posts_per_page: "每页帖子数",
+  promoter_program_enabled: "启用推广者计划",
+  promoter_l1_min_invites: "L1 升级所需邀请数",
+  promoter_l2_min_invites: "L2 升级所需邀请数",
+  promoter_l3_min_invites: "L3 升级所需邀请数",
+  promoter_l4_min_invites: "L4 升级所需邀请数",
+  promoter_l1_credit_reward: "L1 积分奖励",
+  promoter_l2_credit_reward: "L2 积分奖励",
+  promoter_l3_credit_reward: "L3 积分奖励",
+  promoter_l4_credit_reward: "L4 积分奖励",
+  promoter_l1_day_reward: "L1 会员天数奖励",
+  promoter_l2_day_reward: "L2 会员天数奖励",
+  promoter_l3_day_reward: "L3 会员天数奖励",
+  promoter_l4_day_reward: "L4 会员天数奖励",
+  promoter_freeze_days: "奖励冻结天数",
+  invitee_welcome_credits: "被邀请人欢迎积分",
+  invitee_welcome_vip_days: "被邀请人欢迎会员天数",
 };
 
 const ROLE_OPTIONS = ["user", "moderator"];
@@ -191,7 +250,7 @@ export default function AdminSettingsPage() {
       );
     }
 
-    if (key === "max_upload_size_mb" || key === "posts_per_page") {
+    if (NUMBER_KEYS.has(key)) {
       return (
         <div key={key} className="py-3">
           <div className="text-sm font-medium mb-1">{desc}</div>
