@@ -6,8 +6,10 @@
  */
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
+import type { Database } from "./index.js";
 import * as schema from "./schema.js";
 import { forumCategories, forumPosts, forumReplies, forumVotes, users } from "./schema.js";
+import type { ForumCategory, ForumPost } from "./schema.js";
 import { eq, sql, inArray } from "drizzle-orm";
 
 // Known seed post titles — used for idempotency detection
@@ -29,13 +31,21 @@ function hoursAgo(n: number): Date {
   return new Date(Date.now() - n * 60 * 60 * 1000);
 }
 
-export async function seedForum(dbArg?, clientArg?) {
+type SeedDb = Database;
+type SeedClient = ReturnType<typeof postgres>;
+type SeedCategoryRow = Pick<ForumCategory, "id" | "slug">;
+type SeedPostRow = Pick<ForumPost, "id" | "userId">;
+
+export async function seedForum(dbArg?: SeedDb, clientArg?: SeedClient) {
   // If db and client are not provided, create our own connection
   const ownConnection = !dbArg;
-  let ownClient;
-  let db = dbArg;
-  let client = clientArg;
-  if (ownConnection) {
+  let ownClient: SeedClient | undefined;
+  let client: SeedClient | undefined = clientArg;
+  let db: SeedDb;
+
+  if (dbArg) {
+    db = dbArg;
+  } else {
     const databaseUrl = process.env.DATABASE_URL;
     if (!databaseUrl) {
       console.error("DATABASE_URL is required");
@@ -120,7 +130,7 @@ export async function seedForum(dbArg?, clientArg?) {
       ? insertedCategories
       : await db.select().from(forumCategories);
 
-  const catMap = Object.fromEntries(cats.map((c) => [c.slug, c.id]));
+  const catMap = Object.fromEntries(cats.map((c: SeedCategoryRow) => [c.slug, c.id]));
 
   // ── Idempotency: clean up existing seed posts ──────────────
   const existingSeedPosts = await db
@@ -129,12 +139,14 @@ export async function seedForum(dbArg?, clientArg?) {
     .where(inArray(forumPosts.title, SEED_POST_TITLES));
 
   if (existingSeedPosts.length > 0) {
-    const uniqueAuthors = new Set(existingSeedPosts.map((p) => p.userId));
+    const uniqueAuthors = new Set(existingSeedPosts.map((p: SeedPostRow) => p.userId));
     if (uniqueAuthors.size >= Math.min(allUsers.length, 2)) {
       console.log(
         `Found ${existingSeedPosts.length} seed posts with ${uniqueAuthors.size} distinct authors — skipping (already seeded correctly)`
       );
-      await client.end();
+      if (client) {
+        await client.end();
+      }
       return;
     }
     // Existing posts have wrong user distribution — delete and re-create
@@ -144,7 +156,7 @@ export async function seedForum(dbArg?, clientArg?) {
     );
     await db
       .delete(forumPosts)
-      .where(inArray(forumPosts.id, existingSeedPosts.map((p) => p.id)));
+      .where(inArray(forumPosts.id, existingSeedPosts.map((p: SeedPostRow) => p.id)));
   }
 
   // ── Posts (distributed across users with staggered timestamps) ──

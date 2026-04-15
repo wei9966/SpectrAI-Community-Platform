@@ -19,29 +19,33 @@ export interface DesktopSkill {
   name: string;
   description: string;
   slashCommand: string;
-  type: string;
-  category: string;
-  tags: string; // JSON string
+  type?: string;
+  category?: string;
+  tags?: string; // JSON string
   promptTemplate: string;
-  inputVariables: string; // JSON string: {name, description, required, defaultValue}[]
-  systemPromptAddition: string;
-  isEnabled: boolean;
+  inputVariables?: string; // JSON string: {name, description, required, defaultValue}[]
+  systemPromptAddition?: string;
+  isEnabled?: boolean;
 }
 
 export interface DesktopMCP {
   id: string;
   name: string;
   description: string;
-  transport: "stdio" | "http" | "sse";
+  transport?: "stdio" | "http" | "sse";
   command: string;
-  args: string[];
+  args?: string[];
   url?: string;
   headers?: Record<string, string>;
   envVars?: Record<string, string>;
+  type?: string;
 }
 
 export interface DesktopWorkflow {
-  definition: {
+  type?: string;
+  name?: string;
+  description?: string;
+  definition?: {
     nodes?: unknown[];
     edges?: unknown[];
     [key: string]: unknown;
@@ -50,6 +54,9 @@ export interface DesktopWorkflow {
 }
 
 export interface DesktopTeam {
+  type?: string;
+  name?: string;
+  description?: string;
   roles: Array<{
     roleName: string;
     displayName: string;
@@ -215,7 +222,7 @@ export function serializeSkill(community: SkillWithSource): DesktopSkill {
   return {
     id: "",
     name: community.name,
-    description: community.description,
+    description: community.description ?? "",
     slashCommand: community.command,
     type: "custom",
     category: "uncategorized",
@@ -263,7 +270,7 @@ export function serializeMCP(community: MCPWithSource): DesktopMCP {
   return {
     id: "",
     name: community.name,
-    description: community.description,
+    description: community.description ?? "",
     transport: "stdio",
     command: community.command,
     args: community.args || [],
@@ -284,27 +291,35 @@ export function deserializeWorkflow(desktop: DesktopWorkflow): WorkflowWithSourc
   // Extract steps from DAG nodes
   const steps = (definition.nodes || []).map((node: unknown, index: number) => {
     const n = node as Record<string, unknown>;
+    const config =
+      typeof n.config === "object" && n.config !== null && !Array.isArray(n.config)
+        ? (n.config as Record<string, unknown>)
+        : {};
+
     return {
       id: String(n.id || index + 1),
       name: String(n.name || n.label || `Step ${index + 1}`),
       type: String(n.type || "action"),
       config: {
-        ...n.config,
+        ...config,
         _originalNodeData: n.data,
       },
     };
   });
 
   // Extract triggers from definition
-  const triggers = definition.triggers
-    ? (definition.triggers as unknown[]).map((t: unknown, index: number) => {
+  const triggers: WorkflowContent["triggers"] = definition.triggers
+    ? (definition.triggers as unknown[]).map((t: unknown) => {
         const trigger = t as Record<string, unknown>;
         return {
           type: String(trigger.type || "manual"),
-          config: trigger.config || {},
+          config:
+            typeof trigger.config === "object" && trigger.config !== null && !Array.isArray(trigger.config)
+              ? (trigger.config as Record<string, unknown>)
+              : {},
         };
       })
-    : [{ type: "manual", config: {} }];
+    : [{ type: "manual", config: {} as Record<string, unknown> }];
 
   // Extract variables from definition
   const variables = definition.variables
@@ -363,7 +378,7 @@ export function serializeWorkflow(community: WorkflowWithSource): DesktopWorkflo
       variables,
     },
     name: community.name,
-    description: community.description,
+    description: community.description ?? undefined,
     _originalDag: community._originalDag,
   };
 }
@@ -437,7 +452,7 @@ export function serializeTeam(community: TeamWithSource): DesktopTeam {
       permissions: role.permissions,
     })),
     name: community.name,
-    description: community.description,
+    description: community.description ?? undefined,
     _sourceData: community._sourceData,
   };
 }
@@ -454,6 +469,9 @@ export type CommunityResource = SkillWithSource | MCPWithSource | WorkflowWithSo
  * Detect resource type from Desktop resource
  */
 export function detectDesktopResourceType(resource: DesktopResource): ResourceType {
+  if (resource.type === "skill" || resource.type === "mcp" || resource.type === "workflow" || resource.type === "team") {
+    return resource.type;
+  }
   if ("slashCommand" in resource) return "skill";
   if ("transport" in resource) return "mcp";
   if ("definition" in resource) return "workflow";
