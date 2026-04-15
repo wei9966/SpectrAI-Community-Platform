@@ -6,6 +6,7 @@ import {
   deserialize,
   detectDesktopResourceType,
 } from "../lib/format-converter.js";
+import type { DesktopResource } from "../lib/format-converter.js";
 import { publishRequestSchema } from "@spectrai-community/shared";
 import { resources, resourcePublishLog } from "../db/schema.js";
 
@@ -21,19 +22,20 @@ publishRoutes.post(
     const { userId } = c.get("user");
     const body = c.req.valid("json");
     const { resource, metadata } = body;
+    const desktopResource = resource as DesktopResource;
 
     // Detect resource type
-    const resourceType = detectDesktopResourceType(resource);
+    const resourceType = detectDesktopResourceType(desktopResource);
 
     // Convert desktop format to community format
-    const communityContent = deserialize(resource, resourceType);
+    const communityContent = deserialize(desktopResource, resourceType);
 
     // Insert resource with pending review status
     const [newResource] = await db
       .insert(resources)
       .values({
         name: communityContent.name,
-        description: communityContent.description,
+        description: communityContent.description ?? "",
         type: resourceType,
         content: communityContent as any,
         authorId: userId,
@@ -47,6 +49,7 @@ publishRoutes.post(
     await db.insert(resourcePublishLog).values({
       resourceId: newResource.id,
       action: "publish",
+      newStatus: "pending",
       actorId: userId,
       note: `Published from ${metadata?.sourceApp || "desktop"}`,
     });
