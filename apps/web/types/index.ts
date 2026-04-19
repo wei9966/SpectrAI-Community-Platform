@@ -25,6 +25,8 @@ export type {
   PaginatedResponse,
   LoginRequest,
   RegisterRequest,
+  VerifyCodeRequest,
+  RegisterPendingResponse,
   GithubAuthRequest,
   AuthResponse,
   ChangePasswordRequest,

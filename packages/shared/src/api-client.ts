@@ -1,4 +1,4 @@
-import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, AuthResponse, SearchParams, PaginationInfo } from './types/api';
+import type { ApiResponse, PaginatedResponse, LoginRequest, RegisterRequest, VerifyCodeRequest, RegisterPendingResponse, AuthResponse, SearchParams, PaginationInfo } from './types/api';
 import type { Resource, PublicResource, CreateResourceInput, UpdateResourceInput, ResourceType } from './types/resource';
 import type { InstallManifest, InstallDependency } from './types/install-manifest';
 import type { User, PublicUser, UpdateUserInput } from './types/user';
@@ -180,8 +180,15 @@ export const authApi = {
     });
   },
 
-  async register(data: RegisterRequest): Promise<ApiResponse<AuthResponse>> {
-    return fetchApi<AuthResponse>('/auth/register', {
+  async register(data: RegisterRequest): Promise<ApiResponse<RegisterPendingResponse>> {
+    return fetchApi<RegisterPendingResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async verifyCode(data: VerifyCodeRequest): Promise<ApiResponse<AuthResponse>> {
+    return fetchApi<AuthResponse>('/auth/verify-code', {
       method: 'POST',
       body: JSON.stringify(data),
     });

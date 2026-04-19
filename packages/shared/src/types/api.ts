@@ -68,6 +68,21 @@ export interface RegisterRequest {
   inviteCode?: string;
 }
 
+export interface VerifyCodeRequest {
+  email: string;
+  code: string;
+  username: string;
+  inviteCode?: string;
+}
+
+export interface RegisterPendingResponse {
+  message?: string;
+  email: string;
+  verificationTtl: number;
+  pendingUsername: string;
+  pendingInviteCode: string | null;
+}
+
 export interface GithubAuthRequest {
   code: string;
 }
