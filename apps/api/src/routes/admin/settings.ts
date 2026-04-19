@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { systemSettings } from "../../db/schema.js";
 import { authMiddleware, adminOnly } from "../../middleware/auth.js";
+import { getRedis } from "../../lib/redis.js";
 
 const adminSettingsRoutes = new Hono();
 
@@ -105,6 +106,17 @@ adminSettingsRoutes.put(
     }
 
     const allSettings = await db.select().from(systemSettings).orderBy(systemSettings.key);
+
+    // Invalidate caches that depend on system_settings
+    const hasPromoterChange = entries.some(([k]) => k.startsWith("promoter."));
+    if (hasPromoterChange) {
+      try {
+        const redis = getRedis();
+        await redis.del("promoter:config");
+      } catch {
+        // Redis optional — ignore failures
+      }
+    }
 
     return c.json({ success: true, data: allSettings });
   }
