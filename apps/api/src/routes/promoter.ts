@@ -4,6 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 import { sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { ensureInviteCode } from "./invite.js";
 import {
   getPromoterConfig,
   getPromoterStats,
@@ -49,6 +50,7 @@ promoterRoutes.get("/config", async (c) => {
 promoterRoutes.get("/profile", authMiddleware, async (c) => {
   const { userId } = c.get("user");
   const stats = await getPromoterStats(userId);
+  const invite = await ensureInviteCode(userId);
 
   const recentRewardRows = asRows<Record<string, unknown>>(
     await db.execute(sql`
@@ -74,6 +76,7 @@ promoterRoutes.get("/profile", authMiddleware, async (c) => {
     success: true,
     data: {
       ...stats,
+      inviteCode: invite.code,
       recentRewards: recentRewardRows.map((row) => ({
         id: row.id,
         rewardType: row.rewardType,

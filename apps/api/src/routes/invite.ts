@@ -22,7 +22,7 @@ function asRows<T>(result: unknown): T[] {
   return result as T[];
 }
 
-async function ensureInviteCode(userId: string): Promise<{ id: string; code: string }> {
+export async function ensureInviteCode(userId: string): Promise<{ id: string; code: string }> {
   const existingRows = asRows<{ id: string; code: string }>(
     await db.execute(sql`
       SELECT id, code
