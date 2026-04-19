@@ -46,10 +46,12 @@ const DEFAULT_SETTINGS: Array<{
 
 adminSettingsRoutes.get("/", async (c) => {
   let settings = await db.select().from(systemSettings).orderBy(systemSettings.key);
+  const existingKeys = new Set(settings.map((row) => row.key));
+  const missing = DEFAULT_SETTINGS.filter((item) => !existingKeys.has(item.key));
 
-  if (settings.length === 0) {
+  if (missing.length > 0) {
     await db.insert(systemSettings).values(
-      DEFAULT_SETTINGS.map((item) => ({
+      missing.map((item) => ({
         key: item.key,
         value: item.value,
         description: item.description,
