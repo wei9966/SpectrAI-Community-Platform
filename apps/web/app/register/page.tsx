@@ -1,25 +1,49 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
+
+const INVITE_CODE_STORAGE_KEY = "spectrai.inviteCode";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [formData, setFormData] = React.useState({
     username: "",
     email: "",
     password: "",
     confirmPassword: "",
   });
+  const [inviteCode, setInviteCode] = React.useState("");
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    const codeFromUrl =
+      searchParams.get("inviteCode") ??
+      searchParams.get("invite_code") ??
+      searchParams.get("code") ??
+      "";
+    const normalizedCode = codeFromUrl.trim();
+
+    if (normalizedCode) {
+      setInviteCode(normalizedCode);
+      localStorage.setItem(INVITE_CODE_STORAGE_KEY, normalizedCode);
+      return;
+    }
+
+    const storedCode = localStorage.getItem(INVITE_CODE_STORAGE_KEY)?.trim() ?? "";
+    if (storedCode) {
+      setInviteCode(storedCode);
+    }
+  }, [searchParams]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -62,21 +86,21 @@ export default function RegisterPage() {
     setIsSubmitting(true);
 
     try {
+      const normalizedInviteCode = inviteCode.trim();
       const result = await api.register(
         formData.username,
         formData.email,
-        formData.password
+        formData.password,
+        normalizedInviteCode || undefined
       );
 
       if (result.success && result.data) {
-        // 保存 token
-        localStorage.setItem('auth_token', result.data.token);
-        // 跳转到首页
-        router.push('/');
+        localStorage.setItem("auth_token", result.data.token);
+        router.push("/");
       } else {
         setErrors({ submit: result.error || "注册失败" });
       }
-    } catch (error) {
+    } catch {
       setErrors({ submit: "注册失败，请稍后重试" });
     } finally {
       setIsSubmitting(false);
@@ -84,7 +108,6 @@ export default function RegisterPage() {
   };
 
   const handleGithubRegister = () => {
-    // GitHub OAuth 注册 - 实际应用中需要重定向到 OAuth 授权页面
     const githubAuthUrl = process.env.NEXT_PUBLIC_GITHUB_AUTH_URL;
     if (githubAuthUrl) {
       window.location.href = githubAuthUrl;
@@ -101,24 +124,25 @@ export default function RegisterPage() {
     }
   };
 
+  const handleInviteCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nextInviteCode = e.target.value;
+    setInviteCode(nextInviteCode);
+    localStorage.setItem(INVITE_CODE_STORAGE_KEY, nextInviteCode);
+    if (errors.inviteCode) {
+      setErrors((prev) => ({ ...prev, inviteCode: "" }));
+    }
+  };
+
   return (
-    <div className="container py-16 flex items-center justify-center min-h-[80vh]">
+    <div className="container flex min-h-[80vh] items-center justify-center py-16">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">注册账户</CardTitle>
-          <CardDescription className="text-center">
-            创建你的账户以开始使用
-          </CardDescription>
+          <CardTitle className="text-center text-2xl font-bold">注册账户</CardTitle>
+          <CardDescription className="text-center">创建你的账户以开始使用</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* GitHub 注册按钮 */}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleGithubRegister}
-          >
-            <Github className="w-4 h-4 mr-2" />
+          <Button type="button" variant="outline" className="w-full" onClick={handleGithubRegister}>
+            <Github className="mr-2 h-4 w-4" />
             使用 GitHub 账户注册
           </Button>
 
@@ -127,13 +151,10 @@ export default function RegisterPage() {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                或者使用邮箱注册
-              </span>
+              <span className="bg-background px-2 text-muted-foreground">或者使用邮箱注册</span>
             </div>
           </div>
 
-          {/* 注册表单 */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">用户名</Label>
@@ -145,9 +166,7 @@ export default function RegisterPage() {
                 onChange={handleInputChange}
                 disabled={isSubmitting}
               />
-              {errors.username && (
-                <p className="text-sm text-destructive">{errors.username}</p>
-              )}
+              {errors.username && <p className="text-sm text-destructive">{errors.username}</p>}
             </div>
 
             <div className="space-y-2">
@@ -161,9 +180,20 @@ export default function RegisterPage() {
                 onChange={handleInputChange}
                 disabled={isSubmitting}
               />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email}</p>
-              )}
+              {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="inviteCode">邀请码（选填）</Label>
+              <Input
+                id="inviteCode"
+                name="inviteCode"
+                placeholder="请输入邀请码"
+                value={inviteCode}
+                onChange={handleInviteCodeChange}
+                disabled={isSubmitting}
+              />
+              {errors.inviteCode && <p className="text-sm text-destructive">{errors.inviteCode}</p>}
             </div>
 
             <div className="space-y-2">
@@ -177,9 +207,7 @@ export default function RegisterPage() {
                 onChange={handleInputChange}
                 disabled={isSubmitting}
               />
-              {errors.password && (
-                <p className="text-sm text-destructive">{errors.password}</p>
-              )}
+              {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
             </div>
 
             <div className="space-y-2">
@@ -193,28 +221,20 @@ export default function RegisterPage() {
                 onChange={handleInputChange}
                 disabled={isSubmitting}
               />
-              {errors.confirmPassword && (
-                <p className="text-sm text-destructive">{errors.confirmPassword}</p>
-              )}
+              {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
             </div>
 
             {errors.submit && (
-              <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
+              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 {errors.submit}
               </div>
             )}
 
-            <Button
-              type="submit"
-              variant="gradient"
-              className="w-full"
-              disabled={isSubmitting}
-            >
+            <Button type="submit" variant="gradient" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? "注册中..." : "注册账户"}
             </Button>
           </form>
 
-          {/* 登录链接 */}
           <p className="text-center text-sm text-muted-foreground">
             已有账户？{" "}
             <Link href="/login" className="text-primary hover:underline">

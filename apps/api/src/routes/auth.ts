@@ -10,6 +10,7 @@ import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
 import { getEnv } from "../config/env.js";
 import { authMiddleware, type JwtPayload } from "../middleware/auth.js";
+import { bindInviteCodeToUser } from "./invite.js";
 import type { ApiResponse } from "../types/shared.js";
 
 const authRoutes = new Hono();
@@ -23,6 +24,7 @@ const registerSchema = z.object({
     .regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, hyphens and underscores"),
   email: z.string().email(),
   password: z.string().min(8).max(100),
+  inviteCode: z.string().min(4).max(16).optional(),
 });
 
 const loginSchema = z.object({
@@ -61,9 +63,8 @@ async function proxyClaudeOpsLogin(email: string, password: string) {
 
 // ── POST /api/auth/register ─────────────────────────────────
 authRoutes.post("/register", zValidator("json", registerSchema), async (c) => {
-  const { username, email, password } = c.req.valid("json");
+  const { username, email, password, inviteCode } = c.req.valid("json");
 
-  // Check existing
   const [existingEmail] = await db
     .select()
     .from(users)
@@ -87,6 +88,18 @@ authRoutes.post("/register", zValidator("json", registerSchema), async (c) => {
     .insert(users)
     .values({ username, email, passwordHash })
     .returning();
+
+  if (inviteCode) {
+    try {
+      await bindInviteCodeToUser(user.id, inviteCode);
+    } catch (error) {
+      console.warn("[auth/register] failed to bind invite code:", {
+        userId: user.id,
+        inviteCode,
+        error,
+      });
+    }
+  }
 
   const token = signToken({
     userId: user.id,

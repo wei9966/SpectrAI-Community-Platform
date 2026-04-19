@@ -31,6 +31,7 @@ import { adminResourceRoutes } from "./routes/admin/resources.js";
 import { adminForumRoutes } from "./routes/admin/forum.js";
 import { adminSettingsRoutes } from "./routes/admin/settings.js";
 import adminPromoterRoutes from "./routes/admin/promoter.js";
+import { batchReleasePendingRewards, expireStaleRewards } from "./lib/promoter-service.js";
 
 const app = new Hono();
 
@@ -99,5 +100,24 @@ serve({ fetch: app.fetch, port }, () => {
   console.log(`SpectrAI Community API running on http://localhost:${port}`);
   console.log(`Environment: ${env.NODE_ENV}`);
 });
+
+void batchReleasePendingRewards().catch((err) => {
+  console.error("[promoter] initial release failed:", err);
+});
+
+void expireStaleRewards().catch((err) => {
+  console.error("[promoter] initial expire failed:", err);
+});
+
+const HOUR = 60 * 60 * 1000;
+const releaseTimer = setInterval(async () => {
+  try {
+    await batchReleasePendingRewards();
+    await expireStaleRewards();
+  } catch (err) {
+    console.error("[promoter] periodic release failed:", err);
+  }
+}, HOUR);
+releaseTimer.unref?.();
 
 export default app;

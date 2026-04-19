@@ -48,8 +48,8 @@ export const api = {
     return sharedAuthApi.login({ email, password });
   },
 
-  async register(username: string, email: string, password: string) {
-    return sharedAuthApi.register({ username, email, password });
+  async register(username: string, email: string, password: string, inviteCode?: string) {
+    return sharedAuthApi.register({ username, email, password, inviteCode });
   },
 
   // logout: 前端自行清除 token，不调用后端 API
