@@ -23,6 +23,10 @@ function asRows<T>(result: unknown): T[] {
   return result as T[];
 }
 
+function toTimestampParam(value: Date | null): string | null {
+  return value ? value.toISOString() : null;
+}
+
 export async function ensureInviteCode(userId: string): Promise<{ id: string; code: string }> {
   const existingRows = asRows<{ id: string; code: string }>(
     await db.execute(sql`
@@ -137,11 +141,12 @@ export async function bindInviteCodeToUser(
         ? new Date(Date.now() + promoterConfig.rewardDelayHours * 60 * 60 * 1000)
         : null);
     const rewardStatus = rewardResult.rewards.length > 0 ? "pending" : "granted";
+    const rewardFrozenUntilParam = toTimestampParam(rewardFrozenUntil);
 
     await tx.execute(sql`
       UPDATE invite_codes
       SET reward_status = ${rewardStatus},
-          reward_frozen_until = ${rewardFrozenUntil}
+          reward_frozen_until = ${rewardFrozenUntilParam}
       WHERE id = ${String(invite.id)}
     `);
 

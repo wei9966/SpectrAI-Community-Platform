@@ -114,6 +114,10 @@ function addDays(base: Date, days: number): Date {
   return new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
 }
 
+function toTimestampParam(value: Date | null): string | null {
+  return value ? value.toISOString() : null;
+}
+
 async function syncCreditRule(
   executor: QueryExecutor,
   action: string,
@@ -220,7 +224,7 @@ async function grantMembershipDaysInternal(
 
     await executor.execute(sql`
       UPDATE plan_subscriptions
-      SET expires_at = ${newExpiresAt}
+      SET expires_at = ${toTimestampParam(newExpiresAt)}
       WHERE id = ${current.id}
     `);
 
@@ -259,8 +263,8 @@ async function grantMembershipDaysInternal(
       ${userId},
       'community_vip',
       ${source},
-      ${startsAt},
-      ${expiresAt},
+      ${toTimestampParam(startsAt)},
+      ${toTimestampParam(expiresAt)},
       true
     )
   `);
@@ -350,7 +354,7 @@ async function createPromoterRewardRow(
         ${rewardType},
         ${amount},
         'pending',
-        ${releaseAt}
+        ${toTimestampParam(releaseAt)}
       )
       RETURNING id
     `)
