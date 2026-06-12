@@ -114,6 +114,24 @@ describe("cross-repo Pro membership writeback", () => {
       source: "invitee_welcome",
       requestId: "invitee_welcome:invite-code-1:invitee-1",
     });
+    expect(payload).not.toHaveProperty("userId");
+  });
+
+  it("invitee welcome maps numeric claudeops_uuid to userId for A-repo grant", async () => {
+    const { executor } = createExecutor({ claudeopsUuid: "1765" });
+
+    await grantInviteeWelcome("invitee-1765", "invite-code-1765", executor);
+
+    expect(clientMocks.enqueueMembershipGrantOutbox).toHaveBeenCalledTimes(1);
+    const [, payload] = clientMocks.enqueueMembershipGrantOutbox.mock.calls[0];
+    expect(payload).toMatchObject({
+      userId: "1765",
+      days: 7,
+      plan: "pro",
+      source: "invitee_welcome",
+      requestId: "invitee_welcome:invite-code-1765:invitee-1765",
+    });
+    expect(payload).not.toHaveProperty("claudeopsUuid");
   });
 
   it("produces a stable requestId across repeated invitee grants (idempotent)", async () => {

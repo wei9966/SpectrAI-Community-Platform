@@ -181,8 +181,12 @@ async function enqueueCrossRepoProGrant(
     return;
   }
 
+  const claudeopsAccountRef = /^\d+$/.test(claudeopsUuid)
+    ? { userId: claudeopsUuid }
+    : { claudeopsUuid };
+
   await enqueueMembershipGrantOutbox(executor, {
-    claudeopsUuid,
+    ...claudeopsAccountRef,
     days,
     plan: "pro",
     source,
