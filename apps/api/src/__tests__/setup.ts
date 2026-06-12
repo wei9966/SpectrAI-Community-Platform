@@ -8,6 +8,7 @@ const TEST_ENV = {
   JWT_SECRET: 'test-jwt-secret-key-for-testing',
   GITHUB_CLIENT_ID: 'test-github-client-id',
   GITHUB_CLIENT_SECRET: 'test-github-client-secret',
+  INTERNAL_SERVICE_SECRET: 'test-internal-service-secret',
 };
 
 beforeAll(() => {
@@ -17,6 +18,7 @@ beforeAll(() => {
   process.env.JWT_SECRET = TEST_ENV.JWT_SECRET;
   process.env.GITHUB_CLIENT_ID = TEST_ENV.GITHUB_CLIENT_ID;
   process.env.GITHUB_CLIENT_SECRET = TEST_ENV.GITHUB_CLIENT_SECRET;
+  process.env.INTERNAL_SERVICE_SECRET = TEST_ENV.INTERNAL_SERVICE_SECRET;
 });
 
 afterAll(() => {

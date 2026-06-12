@@ -1,4 +1,4 @@
-﻿import {
+import {
   pgTable,
   uuid,
   varchar,
@@ -850,6 +850,42 @@ export const promoterRewards = pgTable(
   ]
 );
 
+export interface MembershipGrantOutboxPayload {
+  claudeopsUuid?: string;
+  userId?: string;
+  days: number;
+  plan: "pro";
+  source: string;
+  note: string;
+  requestId: string;
+  ts: number;
+}
+
+export const membershipGrantOutbox = pgTable(
+  "membership_grant_outbox",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    requestId: varchar("request_id", { length: 100 }).notNull().unique(),
+    payload: jsonb("payload").$type<MembershipGrantOutboxPayload>().notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+    nextRetryAt: timestamp("next_retry_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("idx_membership_grant_outbox_status_retry").on(table.status, table.nextRetryAt),
+    index("idx_membership_grant_outbox_created_at").on(table.createdAt),
+  ]
+);
 export const cdkProjects = pgTable("cdk_projects", {
   id: uuid("id").defaultRandom().primaryKey(),
   creatorId: uuid("creator_id")
@@ -1192,6 +1228,8 @@ export type PromoterProfile = typeof promoterProfiles.$inferSelect;
 export type NewPromoterProfile = typeof promoterProfiles.$inferInsert;
 export type PromoterReward = typeof promoterRewards.$inferSelect;
 export type NewPromoterReward = typeof promoterRewards.$inferInsert;
+export type MembershipGrantOutbox = typeof membershipGrantOutbox.$inferSelect;
+export type NewMembershipGrantOutbox = typeof membershipGrantOutbox.$inferInsert;
 export type CdkProject = typeof cdkProjects.$inferSelect;
 export type NewCdkProject = typeof cdkProjects.$inferInsert;
 export type CdkItem = typeof cdkItems.$inferSelect;
