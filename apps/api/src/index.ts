@@ -32,6 +32,10 @@ import { adminForumRoutes } from "./routes/admin/forum.js";
 import { adminSettingsRoutes } from "./routes/admin/settings.js";
 import adminPromoterRoutes from "./routes/admin/promoter.js";
 import { batchReleasePendingRewards, expireStaleRewards } from "./lib/promoter-service.js";
+import {
+  dispatchMembershipGrantOutboxBestEffort,
+  isClaudeOpsIntegrationConfigured,
+} from "./lib/claudeops-membership-client.js";
 
 const app = new Hono();
 
@@ -119,5 +123,17 @@ const releaseTimer = setInterval(async () => {
   }
 }, HOUR);
 releaseTimer.unref?.();
+
+// Cross-repo Pro membership writeback worker: drains the membership_grant_outbox so
+// invitee/promoter grants reach A-repo claudeops even if immediate dispatch failed.
+// Only runs when the integration is configured (otherwise a no-op), and the wrapper
+// never throws, so it can never crash the process.
+if (isClaudeOpsIntegrationConfigured()) {
+  const MEMBERSHIP_OUTBOX_INTERVAL = 60 * 1000;
+  const membershipOutboxTimer = setInterval(() => {
+    void dispatchMembershipGrantOutboxBestEffort();
+  }, MEMBERSHIP_OUTBOX_INTERVAL);
+  membershipOutboxTimer.unref?.();
+}
 
 export default app;

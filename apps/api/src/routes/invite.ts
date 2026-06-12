@@ -10,6 +10,7 @@ import {
   grantInviteeWelcome,
   processPromoterReward,
 } from "../lib/promoter-service.js";
+import { dispatchMembershipGrantOutboxBestEffort } from "../lib/claudeops-membership-client.js";
 import { createNotification } from "../lib/notify.js";
 
 const inviteRoutes = new Hono();
@@ -151,6 +152,10 @@ export async function bindInviteCodeToUser(
       rewardStatus,
     };
   });
+
+  // Transaction committed: the invitee's welcome grant + its cross-repo outbox row are
+  // now durable. Best-effort immediate delivery to A-repo; never blocks the response.
+  void dispatchMembershipGrantOutboxBestEffort();
 
   void createNotification({
     type: "invite_bound",

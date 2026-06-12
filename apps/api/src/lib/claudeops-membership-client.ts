@@ -1,8 +1,12 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, type SQL } from "drizzle-orm";
 import { getEnv } from "../config/env.js";
 import { db } from "../db/index.js";
 import { membershipGrantOutbox } from "../db/schema.js";
+
+interface OutboxQueryExecutor {
+  execute: (query: SQL<unknown>) => Promise<unknown>;
+}
 
 export type MembershipGrantPlan = "pro";
 export type MembershipGrantOutboxStatus = "pending" | "sent" | "dead";
@@ -135,6 +139,14 @@ function getClaudeOpsGrantUrl() {
   const baseUrl = getEnv().CLAUDEOPS_API_BASE_URL.replace(/\/+$/, "");
   const internalBaseUrl = baseUrl.endsWith("/api") ? baseUrl.slice(0, -4) : baseUrl;
   return `${internalBaseUrl}/internal/grant-membership-days`;
+}
+
+// True only when the A-repo (claudeops) integration is fully configured. Immediate
+// dispatch and the background worker must no-op when this is false, so a missing
+// secret/baseURL never breaks the local grant + registration flow.
+export function isClaudeOpsIntegrationConfigured(): boolean {
+  const secret = process.env.INTERNAL_SERVICE_SECRET || getEnv().INTERNAL_SERVICE_SECRET;
+  return Boolean(secret) && Boolean(getEnv().CLAUDEOPS_API_BASE_URL);
 }
 
 function truncateLastError(error: string | undefined) {
@@ -449,4 +461,50 @@ export async function retryPendingMembershipGrantOutbox(options: GrantMembership
     failed,
     processedRequestIds,
   };
+}
+
+// Atomically records the intent to grant a cross-repo (A-repo) Pro membership using
+// the caller's transaction executor, so the outbox row commits together with the
+// local grant. A deterministic requestId (carried in payload.requestId) plus the
+// request_id UNIQUE constraint makes re-registration / retries idempotent. This never
+// reads the integration secret, so it works even before the integration is configured;
+// the worker drains the row once configuration is present.
+export async function enqueueMembershipGrantOutbox(
+  executor: OutboxQueryExecutor,
+  payload: MembershipGrantPayload
+) {
+  await executor.execute(sql`
+    INSERT INTO membership_grant_outbox (
+      request_id,
+      payload,
+      status,
+      attempts,
+      next_retry_at
+    )
+    VALUES (
+      ${payload.requestId},
+      ${JSON.stringify(payload)}::jsonb,
+      'pending',
+      0,
+      now()
+    )
+    ON CONFLICT (request_id) DO NOTHING
+  `);
+}
+
+// Best-effort immediate delivery of pending outbox rows after a commit. Never throws
+// and never blocks the caller's response path: callers should treat this as fire and
+// forget. No-ops when the integration is not configured.
+export async function dispatchMembershipGrantOutboxBestEffort(
+  options: GrantMembershipClientOptions & { limit?: number } = {}
+) {
+  if (!isClaudeOpsIntegrationConfigured()) {
+    return;
+  }
+
+  try {
+    await retryPendingMembershipGrantOutbox(options);
+  } catch (error) {
+    console.error("[membership] immediate outbox dispatch failed:", error);
+  }
 }

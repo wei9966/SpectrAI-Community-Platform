@@ -3,6 +3,10 @@ import { db } from "../db/index.js";
 import { awardCredits, freezeCredits, unfreezeCredits } from "./credit-service.js";
 import { getRedis } from "./redis.js";
 import { createNotification } from "./notify.js";
+import {
+  dispatchMembershipGrantOutboxBestEffort,
+  enqueueMembershipGrantOutbox,
+} from "./claudeops-membership-client.js";
 import { promoterLevelEnum } from "../db/schema.js";
 
 interface QueryExecutor {
@@ -146,11 +150,50 @@ async function syncCreditRule(
   `);
 }
 
+// Atomically enqueues the cross-repo (A-repo claudeops) Pro membership grant inside the
+// caller's transaction, so the outbox intent commits together with the local grant and
+// survives a crash. grantRef is a deterministic idempotency key (UNIQUE on the outbox
+// request_id) supplied by the caller. Skips when the user is not bound to an A account
+// (claudeops_uuid null) — the local grant still succeeds. Never reads the integration
+// secret, so an unconfigured integration cannot break the local grant.
+async function enqueueCrossRepoProGrant(
+  executor: QueryExecutor,
+  userId: string,
+  days: number,
+  source: string,
+  grantRef: string
+) {
+  const rows = asRows<{ claudeopsUuid: string | null }>(
+    await executor.execute(sql`
+      SELECT claudeops_uuid AS "claudeopsUuid"
+      FROM users
+      WHERE id = ${userId}
+      LIMIT 1
+    `)
+  );
+
+  const claudeopsUuid = rows[0]?.claudeopsUuid;
+  if (!claudeopsUuid) {
+    return;
+  }
+
+  await enqueueMembershipGrantOutbox(executor, {
+    claudeopsUuid,
+    days,
+    plan: "pro",
+    source,
+    note: "",
+    requestId: grantRef,
+    ts: Math.floor(Date.now() / 1000),
+  });
+}
+
 async function grantMembershipDaysInternal(
   executor: QueryExecutor,
   userId: string,
   days: number,
-  source: string
+  source: string,
+  grantRef: string
 ) {
   if (!Number.isInteger(days) || days <= 0) {
     return null;
@@ -187,6 +230,8 @@ async function grantMembershipDaysInternal(
           updated_at = now()
       WHERE id = ${userId}
     `);
+
+    await enqueueCrossRepoProGrant(executor, userId, days, source, grantRef);
 
     return {
       userId,
@@ -226,6 +271,8 @@ async function grantMembershipDaysInternal(
         updated_at = now()
     WHERE id = ${userId}
   `);
+
+  await enqueueCrossRepoProGrant(executor, userId, days, source, grantRef);
 
   return {
     userId,
@@ -618,7 +665,8 @@ async function grantInviteeWelcomeInternal(
       executor,
       inviteeUserId,
       config.inviteeWelcomeMembershipDays,
-      "invitee_welcome"
+      "invitee_welcome",
+      `invitee_welcome:${inviteCodeId ?? "none"}:${inviteeUserId}`
     );
   }
 
@@ -630,15 +678,20 @@ export async function grantInviteeWelcome(
   inviteCodeId?: string,
   executor?: QueryExecutor
 ) {
-  const result = executor
-    ? await grantInviteeWelcomeInternal(executor, inviteeUserId, inviteCodeId)
-    : await db.transaction((tx) =>
-        grantInviteeWelcomeInternal(
-          tx as unknown as QueryExecutor,
-          inviteeUserId,
-          inviteCodeId
-        )
-      );
+  if (executor) {
+    // Caller owns the transaction; it is responsible for dispatching after its commit.
+    return grantInviteeWelcomeInternal(executor, inviteeUserId, inviteCodeId);
+  }
+
+  const result = await db.transaction((tx) =>
+    grantInviteeWelcomeInternal(
+      tx as unknown as QueryExecutor,
+      inviteeUserId,
+      inviteCodeId
+    )
+  );
+
+  void dispatchMembershipGrantOutboxBestEffort();
 
   return result;
 }
@@ -695,7 +748,8 @@ async function releaseRewardInternal(executor: QueryExecutor, rewardId: string) 
       executor,
       reward.promoterUserId,
       amount,
-      "promoter_reward"
+      "promoter_reward",
+      `promoter_reward:${reward.id}`
     );
   }
 
@@ -734,9 +788,18 @@ async function releaseRewardInternal(executor: QueryExecutor, rewardId: string) 
 }
 
 export async function releaseReward(rewardId: string, executor?: QueryExecutor) {
-  return executor
-    ? releaseRewardInternal(executor, rewardId)
-    : db.transaction((tx) => releaseRewardInternal(tx as unknown as QueryExecutor, rewardId));
+  if (executor) {
+    // Caller owns the transaction; it is responsible for dispatching after its commit.
+    return releaseRewardInternal(executor, rewardId);
+  }
+
+  const result = await db.transaction((tx) =>
+    releaseRewardInternal(tx as unknown as QueryExecutor, rewardId)
+  );
+
+  void dispatchMembershipGrantOutboxBestEffort();
+
+  return result;
 }
 
 export async function expireStaleRewards() {

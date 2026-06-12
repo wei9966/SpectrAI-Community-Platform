@@ -38,8 +38,25 @@ vi.mock("../db/index.js", () => ({
 
 import {
   buildSignedMembershipGrantRequest,
+  dispatchMembershipGrantOutboxBestEffort,
+  enqueueMembershipGrantOutbox,
   grantClaudeOpsMembershipDays,
+  isClaudeOpsIntegrationConfigured,
+  retryPendingMembershipGrantOutbox,
 } from "../lib/claudeops-membership-client.js";
+
+function sqlText(query: unknown): string {
+  const chunks = (query as { queryChunks?: unknown[] })?.queryChunks ?? [];
+  return chunks
+    .map((chunk) => {
+      if (typeof chunk === "string") return chunk;
+      const value = (chunk as { value?: unknown }).value;
+      if (Array.isArray(value)) return value.join("");
+      if (typeof value === "string") return value;
+      return "";
+    })
+    .join(" ");
+}
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -258,5 +275,121 @@ describe("claudeops-membership-client", () => {
       requestId: "req-retry",
       ts: 1710000003,
     });
+  });
+});
+
+describe("isClaudeOpsIntegrationConfigured", () => {
+  beforeEach(() => {
+    process.env.INTERNAL_SERVICE_SECRET = mocks.env.INTERNAL_SERVICE_SECRET;
+    mocks.env.INTERNAL_SERVICE_SECRET = "test-internal-service-secret";
+    mocks.env.CLAUDEOPS_API_BASE_URL = "https://claudeops.test/api";
+  });
+
+  it("is true when secret and base url are present", () => {
+    expect(isClaudeOpsIntegrationConfigured()).toBe(true);
+  });
+
+  it("is false when the internal service secret is missing", () => {
+    process.env.INTERNAL_SERVICE_SECRET = "";
+    mocks.env.INTERNAL_SERVICE_SECRET = "";
+    expect(isClaudeOpsIntegrationConfigured()).toBe(false);
+  });
+});
+
+describe("enqueueMembershipGrantOutbox", () => {
+  it("inserts a pending row through the provided executor with idempotent conflict handling", async () => {
+    const execute = vi.fn().mockResolvedValue([]);
+    const executor = { execute };
+
+    await enqueueMembershipGrantOutbox(executor, {
+      claudeopsUuid: "A-uuid",
+      days: 7,
+      plan: "pro",
+      source: "invitee_welcome",
+      note: "",
+      requestId: "invitee_welcome:code:user",
+      ts: 1710000004,
+    });
+
+    expect(execute).toHaveBeenCalledTimes(1);
+    const text = sqlText(execute.mock.calls[0][0]);
+    expect(text).toContain("INSERT INTO membership_grant_outbox");
+    expect(text).toContain("ON CONFLICT");
+    expect(text).toContain("DO NOTHING");
+  });
+});
+
+describe("dispatchMembershipGrantOutboxBestEffort", () => {
+  beforeEach(() => {
+    process.env.INTERNAL_SERVICE_SECRET = mocks.env.INTERNAL_SERVICE_SECRET;
+    mocks.env.INTERNAL_SERVICE_SECRET = "test-internal-service-secret";
+    mocks.env.CLAUDEOPS_API_BASE_URL = "https://claudeops.test/api";
+    mocks.execute.mockResolvedValue([]);
+  });
+
+  it("no-ops without touching the outbox when the integration is not configured", async () => {
+    process.env.INTERNAL_SERVICE_SECRET = "";
+    mocks.env.INTERNAL_SERVICE_SECRET = "";
+
+    await dispatchMembershipGrantOutboxBestEffort();
+
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
+
+  it("drains the pending outbox when configured", async () => {
+    mocks.execute.mockResolvedValueOnce([]);
+
+    await dispatchMembershipGrantOutboxBestEffort();
+
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
+    expect(sqlText(mocks.execute.mock.calls[0][0])).toContain("membership_grant_outbox");
+  });
+
+  it("never throws even if the outbox drain fails", async () => {
+    mocks.execute.mockRejectedValueOnce(new Error("db down"));
+
+    await expect(dispatchMembershipGrantOutboxBestEffort()).resolves.toBeUndefined();
+  });
+});
+
+describe("retryPendingMembershipGrantOutbox", () => {
+  beforeEach(() => {
+    process.env.INTERNAL_SERVICE_SECRET = mocks.env.INTERNAL_SERVICE_SECRET;
+    mocks.env.INTERNAL_SERVICE_SECRET = "test-internal-service-secret";
+    mocks.env.CLAUDEOPS_API_BASE_URL = "https://claudeops.test/api";
+  });
+
+  it("delivers a pending row and marks it sent", async () => {
+    mocks.execute.mockResolvedValueOnce([
+      {
+        requestId: "promoter_reward:reward-1",
+        payload: {
+          claudeopsUuid: "A-uuid",
+          days: 10,
+          plan: "pro",
+          source: "promoter_reward",
+          note: "",
+          requestId: "promoter_reward:reward-1",
+          ts: 1710000005,
+        },
+        attempts: 0,
+      },
+    ]);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ ok: true, plan: "pro", plan_expires_at: "2026-07-01T00:00:00Z" })
+    );
+
+    const result = await retryPendingMembershipGrantOutbox({
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    });
+
+    expect(result).toMatchObject({ total: 1, sent: 1, failed: 0 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Marked sent via db.update(...).set(...).where(...)
+    expect(mocks.update).toHaveBeenCalledTimes(1);
+    expect(mocks.updateSet).toHaveBeenCalledTimes(1);
+    const setArg = mocks.updateSet.mock.calls[0][0];
+    expect(setArg).toMatchObject({ status: "sent" });
   });
 });
