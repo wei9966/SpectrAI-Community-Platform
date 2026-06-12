@@ -8,11 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api } from "@/lib/api";
+import { api, fetchApi } from "@/lib/api";
 
 const INVITE_CODE_STORAGE_KEY = "spectrai.inviteCode";
 
 type RegisterStep = "form" | "verify";
+
+type InviterInfo = {
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+};
 
 function RegisterPageContent() {
   const router = useRouter();
@@ -25,6 +31,7 @@ function RegisterPageContent() {
     confirmPassword: "",
   });
   const [inviteCode, setInviteCode] = React.useState("");
+  const [inviter, setInviter] = React.useState<InviterInfo | null>(null);
   const [verificationCode, setVerificationCode] = React.useState("");
   const [verificationTtl, setVerificationTtl] = React.useState<number | null>(null);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -49,6 +56,35 @@ function RegisterPageContent() {
       setInviteCode(storedCode);
     }
   }, [searchParams]);
+
+  React.useEffect(() => {
+    const normalizedCode = inviteCode.trim();
+    if (!normalizedCode) {
+      setInviter(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const result = await fetchApi<InviterInfo | null>(
+          `/invite/inviter/${encodeURIComponent(normalizedCode)}`
+        );
+        if (!cancelled) {
+          setInviter(result.success ? result.data ?? null : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setInviter(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteCode]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -217,6 +253,30 @@ function RegisterPageContent() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {inviter && (
+            <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+              {inviter.avatarUrl ? (
+                <img
+                  src={inviter.avatarUrl}
+                  alt={inviter.displayName ?? inviter.username}
+                  className="h-12 w-12 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-primary">
+                  <span className="text-lg font-bold text-white">
+                    {(inviter.displayName ?? inviter.username).charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">
+                  {inviter.displayName ?? inviter.username}
+                </p>
+                <p className="text-xs text-muted-foreground">邀请你加入 SpectrAI</p>
+              </div>
+            </div>
+          )}
+
           {step === "form" ? (
             <>
               <Button type="button" variant="outline" className="w-full" onClick={handleGithubRegister}>

@@ -248,6 +248,45 @@ inviteRoutes.post(
   }
 );
 
+inviteRoutes.get("/inviter/:code", async (c) => {
+  const code = c.req.param("code").trim().toUpperCase();
+
+  if (!code) {
+    return c.json({ success: true, data: null });
+  }
+
+  const rows = asRows<{
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  }>(
+    await db.execute(sql`
+      SELECT u.username AS "username",
+             u.display_name AS "displayName",
+             u.avatar_url AS "avatarUrl"
+      FROM invite_codes ic
+      JOIN users u ON u.id = ic.inviter_id
+      WHERE ic.code = ${code}
+      LIMIT 1
+    `)
+  );
+
+  const inviter = rows[0];
+
+  if (!inviter) {
+    return c.json({ success: true, data: null });
+  }
+
+  return c.json({
+    success: true,
+    data: {
+      username: inviter.username,
+      displayName: inviter.displayName,
+      avatarUrl: inviter.avatarUrl,
+    },
+  });
+});
+
 inviteRoutes.get("/code", authMiddleware, async (c) => {
   try {
     const { userId } = c.get("user");
