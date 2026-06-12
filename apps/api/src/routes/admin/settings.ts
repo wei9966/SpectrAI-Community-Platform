@@ -37,12 +37,13 @@ const DEFAULT_SETTINGS: Array<{
   { key: "promoter.invite_credits_gold", value: "120", description: "黄金推广者每次邀请奖励积分" },
   { key: "promoter.invite_credits_platinum", value: "200", description: "铂金推广者每次邀请奖励积分" },
   { key: "promoter.invite_credits_diamond", value: "300", description: "钻石推广者每次邀请奖励积分" },
-  { key: "promoter.invite_membership_days_bronze", value: "0", description: "青铜推广者每次邀请奖励会员天数" },
-  { key: "promoter.invite_membership_days_silver", value: "3", description: "白银推广者每次邀请奖励会员天数" },
-  { key: "promoter.invite_membership_days_gold", value: "7", description: "黄金推广者每次邀请奖励会员天数" },
-  { key: "promoter.invite_membership_days_platinum", value: "15", description: "铂金推广者每次邀请奖励会员天数" },
+  { key: "promoter.invite_membership_days_bronze", value: "7", description: "青铜推广者每次邀请奖励会员天数" },
+  { key: "promoter.invite_membership_days_silver", value: "10", description: "白银推广者每次邀请奖励会员天数" },
+  { key: "promoter.invite_membership_days_gold", value: "15", description: "黄金推广者每次邀请奖励会员天数" },
+  { key: "promoter.invite_membership_days_platinum", value: "20", description: "铂金推广者每次邀请奖励会员天数" },
   { key: "promoter.invite_membership_days_diamond", value: "30", description: "钻石推广者每次邀请奖励会员天数" },
   { key: "promoter.invitee_welcome_credits", value: "100", description: "被邀请人欢迎积分奖励" },
+  { key: "promoter.invitee_welcome_membership_days", value: "7", description: "被邀请人欢迎会员天数奖励" },
 ];
 
 adminSettingsRoutes.get("/", async (c) => {

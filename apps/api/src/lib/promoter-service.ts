@@ -57,6 +57,7 @@ export interface PromoterConfig {
   enabled: boolean;
   rewardDelayHours: number;
   inviteeWelcomeCredits: number;
+  inviteeWelcomeMembershipDays: number;
   levels: Record<PromoterLevel, {
     minInvites: number;
     credits: number;
@@ -73,11 +74,12 @@ const DEFAULT_PROMOTER_CONFIG: PromoterConfig = {
   enabled: true,
   rewardDelayHours: 168,
   inviteeWelcomeCredits: 100,
+  inviteeWelcomeMembershipDays: 7,
   levels: {
-    bronze: { minInvites: 0, credits: 50, membershipDays: 0, action: "promoter_invite_bronze" },
-    silver: { minInvites: 5, credits: 80, membershipDays: 3, action: "promoter_invite_silver" },
-    gold: { minInvites: 20, credits: 120, membershipDays: 7, action: "promoter_invite_gold" },
-    platinum: { minInvites: 50, credits: 200, membershipDays: 15, action: "promoter_invite_platinum" },
+    bronze: { minInvites: 0, credits: 50, membershipDays: 7, action: "promoter_invite_bronze" },
+    silver: { minInvites: 5, credits: 80, membershipDays: 10, action: "promoter_invite_silver" },
+    gold: { minInvites: 20, credits: 120, membershipDays: 15, action: "promoter_invite_gold" },
+    platinum: { minInvites: 50, credits: 200, membershipDays: 20, action: "promoter_invite_platinum" },
     diamond: { minInvites: 100, credits: 300, membershipDays: 30, action: "promoter_invite_diamond" },
   },
 };
@@ -335,6 +337,7 @@ export async function getPromoterConfig(): Promise<PromoterConfig> {
     enabled: toBoolean(settings.get("promoter.enabled"), DEFAULT_PROMOTER_CONFIG.enabled),
     rewardDelayHours: toNumber(settings.get("promoter.reward_delay_hours") ?? DEFAULT_PROMOTER_CONFIG.rewardDelayHours),
     inviteeWelcomeCredits: toNumber(settings.get("promoter.invitee_welcome_credits") ?? DEFAULT_PROMOTER_CONFIG.inviteeWelcomeCredits),
+    inviteeWelcomeMembershipDays: toNumber(settings.get("promoter.invitee_welcome_membership_days") ?? DEFAULT_PROMOTER_CONFIG.inviteeWelcomeMembershipDays),
     levels: {
       bronze: {
         minInvites: 0,
@@ -569,7 +572,7 @@ async function grantInviteeWelcomeInternal(
   inviteCodeId?: string
 ) {
   const config = await getPromoterConfig();
-  if (!config.enabled || config.inviteeWelcomeCredits <= 0) {
+  if (!config.enabled || (config.inviteeWelcomeCredits <= 0 && config.inviteeWelcomeMembershipDays <= 0)) {
     return null;
   }
 
@@ -590,21 +593,36 @@ async function grantInviteeWelcomeInternal(
     return null;
   }
 
-  await syncCreditRule(
-    executor,
-    "invitee_welcome_bonus",
-    config.inviteeWelcomeCredits,
-    "被邀请用户欢迎积分"
-  );
+  let creditResult = null;
+  if (config.inviteeWelcomeCredits > 0) {
+    await syncCreditRule(
+      executor,
+      "invitee_welcome_bonus",
+      config.inviteeWelcomeCredits,
+      "被邀请用户欢迎积分"
+    );
 
-  return awardCredits(
-    inviteeUserId,
-    "invitee_welcome_bonus",
-    inviteCodeId,
-    "invite",
-    "被邀请用户欢迎积分",
-    executor
-  );
+    creditResult = await awardCredits(
+      inviteeUserId,
+      "invitee_welcome_bonus",
+      inviteCodeId,
+      "invite",
+      "被邀请用户欢迎积分",
+      executor
+    );
+  }
+
+  let membershipResult = null;
+  if (config.inviteeWelcomeMembershipDays > 0) {
+    membershipResult = await grantMembershipDaysInternal(
+      executor,
+      inviteeUserId,
+      config.inviteeWelcomeMembershipDays,
+      "invitee_welcome"
+    );
+  }
+
+  return creditResult ?? membershipResult;
 }
 
 export async function grantInviteeWelcome(
