@@ -168,7 +168,19 @@ async function proxyClaudeOpsRegister(email: string, password: string, inviteCod
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ email, password, inviteCode }),
+      // Send all field-name variants so the ClaudeOps PHP API stores the
+      // invite code as users.referral_code regardless of which key it reads.
+      body: JSON.stringify(
+        inviteCode
+          ? {
+              email,
+              password,
+              inviteCode,
+              referralCode: inviteCode,
+              referral_code: inviteCode,
+            }
+          : { email, password }
+      ),
     });
     const json = await res.json().catch(() => null);
 

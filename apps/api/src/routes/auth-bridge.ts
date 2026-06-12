@@ -8,18 +8,85 @@ import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
 import { getEnv } from "../config/env.js";
 import type { JwtPayload, ClaudeOpsJwtPayload } from "../middleware/auth.js";
+import { bindInviteCodeToUser } from "./invite.js";
 
 const authBridgeRoutes = new Hono();
 
 // ── Validation ────────────────────────────────────────────────
 const linkSchema = z.object({
   token: z.string().min(1, "ClaudeOps JWT token is required"),
+  // Optional explicit invite code. Normally the code travels inside the
+  // ClaudeOps token payload (referral_code); this is a fallback channel.
+  inviteCode: z.string().min(4).max(32).optional(),
+  referralCode: z.string().min(4).max(32).optional(),
+  referral_code: z.string().min(4).max(32).optional(),
 });
+
+type InviteBindingResult = {
+  status: "bound" | "skipped" | "error";
+  reason?: string;
+};
 
 // ── Helpers ───────────────────────────────────────────────────
 function getClaudeOpsSecret(): string {
   const env = getEnv();
   return env.CLAUDEOPS_JWT_SECRET || env.JWT_SECRET;
+}
+
+/**
+ * Resolve the invite code the community user should be bound to, preferring the
+ * ClaudeOps token payload (the code the user registered with) and falling back
+ * to any explicit field on the request body.
+ */
+function resolveInviteCode(
+  payload: ClaudeOpsJwtPayload,
+  body: { inviteCode?: string; referralCode?: string; referral_code?: string }
+): string | null {
+  const candidate =
+    payload.referral_code ??
+    payload.referralCode ??
+    payload.inviteCode ??
+    body.inviteCode ??
+    body.referralCode ??
+    body.referral_code ??
+    null;
+  if (typeof candidate !== "string") return null;
+  const trimmed = candidate.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+/**
+ * Bind the invite code to a freshly linked/created community user. A linking
+ * call must never fail because of invite-code issues (already bound, invalid,
+ * self-invite, …): we log a warning and surface a non-fatal status instead.
+ */
+async function tryBindInvite(
+  userId: string,
+  code: string | null
+): Promise<InviteBindingResult> {
+  if (!code) {
+    return { status: "skipped", reason: "no_code" };
+  }
+
+  try {
+    await bindInviteCodeToUser(userId, code);
+    return { status: "bound" };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown_error";
+    // Already-bound / already-used / self-invite / not-found are all expected,
+    // recoverable states — keep the account link successful regardless.
+    console.warn("[auth/claudeops/link] invite binding skipped:", {
+      userId,
+      code,
+      reason,
+    });
+    const isExpected =
+      reason === "Invite code already bound" ||
+      reason === "Invite code already used" ||
+      reason === "Cannot bind your own invite code" ||
+      reason === "Invite code not found";
+    return { status: isExpected ? "skipped" : "error", reason };
+  }
 }
 
 function signCommunityToken(payload: JwtPayload): string {
@@ -49,7 +116,8 @@ authBridgeRoutes.post(
   "/claudeops/link",
   zValidator("json", linkSchema),
   async (c) => {
-    const { token } = c.req.valid("json");
+    const { token, inviteCode, referralCode, referral_code } =
+      c.req.valid("json");
 
     let claudeOpsPayload: ClaudeOpsJwtPayload;
     try {
@@ -62,6 +130,11 @@ authBridgeRoutes.post(
     }
 
     const { sub: claudeopsUuid, email, plan } = claudeOpsPayload;
+    const inviteCodeToBind = resolveInviteCode(claudeOpsPayload, {
+      inviteCode,
+      referralCode,
+      referral_code,
+    });
 
     // Check if already linked by claudeopsUuid
     const [existingLinked] = await db
@@ -79,6 +152,13 @@ authBridgeRoutes.post(
           .where(eq(users.id, existingLinked.id));
       }
 
+      // Re-link of an already-linked account: still attempt binding so users
+      // linked before this fix (no promoter_rewards) get backfilled on next login.
+      const inviteBinding = await tryBindInvite(
+        existingLinked.id,
+        inviteCodeToBind
+      );
+
       const communityToken = signCommunityToken({
         userId: existingLinked.id,
         username: existingLinked.username,
@@ -91,6 +171,7 @@ authBridgeRoutes.post(
           user: sanitizeUser(existingLinked),
           token: communityToken,
           isNewUser: false,
+          inviteBinding,
         },
       });
     }
@@ -114,6 +195,8 @@ authBridgeRoutes.post(
         .where(eq(users.id, existingByEmail.id))
         .returning();
 
+      const inviteBinding = await tryBindInvite(updated.id, inviteCodeToBind);
+
       const communityToken = signCommunityToken({
         userId: updated.id,
         username: updated.username,
@@ -126,6 +209,7 @@ authBridgeRoutes.post(
           user: sanitizeUser(updated),
           token: communityToken,
           isNewUser: false,
+          inviteBinding,
         },
       });
     }
@@ -157,6 +241,8 @@ authBridgeRoutes.post(
       })
       .returning();
 
+    const inviteBinding = await tryBindInvite(newUser.id, inviteCodeToBind);
+
     const communityToken = signCommunityToken({
       userId: newUser.id,
       username: newUser.username,
@@ -170,6 +256,7 @@ authBridgeRoutes.post(
           user: sanitizeUser(newUser),
           token: communityToken,
           isNewUser: true,
+          inviteBinding,
         },
       },
       201

@@ -23,6 +23,11 @@ export interface ClaudeOpsJwtPayload {
   type: "access";
   email: string;
   plan: string;
+  // Invite code the user registered with (the inviter's code). Optional for
+  // backwards compatibility with tokens minted before referral_code was exposed.
+  referral_code?: string | null;
+  referralCode?: string | null;
+  inviteCode?: string | null;
 }
 
 declare module "hono" {
